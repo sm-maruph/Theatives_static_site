@@ -92,7 +92,12 @@ button{font:inherit}
 .project-media{display:block;height:min(72vw,820px);overflow:hidden;background:#151515}
 .project-art{width:100%;height:100%;position:relative;overflow:hidden;transition:transform .8s cubic-bezier(.2,.8,.2,1)}
 .project-media:hover .project-art{transform:scale(1.018)}
-.art-1{background:radial-gradient(circle at 65% 35%,#ff6b5f 0,#bd1209 25%,#470503 58%,#120302 100%)}
+.art-1{
+  background:
+    linear-gradient(120deg,rgba(5,5,5,.48),rgba(5,5,5,.18)),
+    url("image/rainz.jpeg") center center / cover no-repeat,
+    #151515;
+}
 .chrome-word{
   position:absolute;left:5%;top:50%;transform:translateY(-52%);font-size:clamp(72px,17vw,260px);
   font-weight:800;letter-spacing:-.08em;color:#ece8e1;text-shadow:0 12px 40px rgba(0,0,0,.45)
@@ -103,7 +108,7 @@ button{font:inherit}
 .art-2{
   background:
     linear-gradient(145deg,rgba(3,10,12,.34),rgba(7,24,29,.48)),
-    url("image/cybertag DIstrict 2.jpeg") center center / cover no-repeat,
+    url("image/cybertagDistrict2.jpeg") center center / cover no-repeat,
     #061011;
 }
 .cyber-grid{
@@ -115,7 +120,7 @@ button{font:inherit}
 .art-3{
   background:
     linear-gradient(120deg,rgba(239,229,212,.18),rgba(199,181,153,.22)),
-    url("image/BiteLink.jpeg") center center / cover no-repeat,
+    url("image/bite.jpeg") center center / cover no-repeat,
     #efe5d4;
 }
 .bite-logo{position:absolute;left:7%;top:50%;transform:translateY(-50%);font-size:clamp(80px,16vw,250px);font-weight:800;line-height:.72;letter-spacing:-.08em;color:#14100d}
