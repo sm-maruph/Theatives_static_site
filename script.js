@@ -230,13 +230,27 @@ window.addEventListener('mousemove', e => {
 // ---------------------------------------------------------
 const contactToggle = document.querySelector('.contact-toggle');
 const contactPanel = document.querySelector('.contact-form-panel');
+const contactSection = document.querySelector('.contact-section');
 const projectForm = document.querySelector('#project-form');
 
 if(contactToggle && contactPanel){
+  const setContactPanel = open=>{
+    contactPanel.classList.toggle('open', open);
+    contactToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+
+  // Desktop: hovering opens the form, matching the upper accordions.
+  contactToggle.addEventListener('mouseenter', ()=>{
+    if(!isMobileLayout()) setContactPanel(true);
+  });
+
+  contactSection?.addEventListener('mouseleave', ()=>{
+    if(!isMobileLayout()) setContactPanel(false);
+  });
+
   contactToggle.addEventListener('click', ()=>{
-    const willOpen = !contactPanel.classList.contains('open');
-    contactPanel.classList.toggle('open', willOpen);
-    contactToggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    const willOpen = !isMobileLayout() || !contactPanel.classList.contains('open');
+    setContactPanel(willOpen);
 
     if(willOpen){
       setTimeout(()=>{

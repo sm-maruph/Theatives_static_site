@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Theatives — Footer Location Map</title>
+<style>
+  :root {
+    --map-bg: #0a0b0d;
+    --dot: #2a2e38;
+    --accent: #ff3b3b;
+    --accent-glow: rgba(255, 59, 59, 0.35);
+    --text: #e8e9ec;
+    --text-dim: #8b8f99;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,
+  body {
+    overflow: hidden;
+  }
+
+  body {
+    margin: 0;
+    background: transparent;
+    font-family: -apple-system, "Inter", "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 40px 16px;
+  }
+
+  /* ============ FOOTER LOCATIONS COMPONENT ============ */
+  .tv-locations {
+    width: 100%;
+    max-width: 980px;
+    background: transparent;
+    border-radius: 18px;
+    padding: 40px clamp(20px, 5vw, 56px) 32px;
+    position: relative;
+  }
+
+  .tv-locations__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+    flex-wrap: wrap;
+  }
+
+  .tv-locations__title {
+    color: var(--text);
+    font-size: 18px;
+    letter-spacing: 0.02em;
+    margin: 0;
+    font-weight: 500;
+  }
+
+  .tv-locations__legend {
+    display: flex;
+    gap: 20px;
+    font-size: 15px;
+    color: var(--text-dim);
+  }
+
+  .tv-locations__legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .tv-locations__legend i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  .tv-map {
+    position: relative;
+    width: 100%;
+    line-height: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: transparent;
+  }
+
+  .tv-map svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    touch-action: none;
+    cursor: default;
+  }
+
+  .tv-map svg.tv-can-pan {
+    cursor: grab;
+  }
+
+  .tv-map svg.is-panning {
+    cursor: grabbing;
+  }
+
+  .tv-map circle.tv-dot {
+    fill: var(--dot);
+  }
+
+  /* Marker: outer pulse ring + solid core. Counter-scaled so it reads
+     the same size regardless of zoom level. */
+  .tv-marker { cursor: pointer; }
+
+  .tv-marker .tv-marker__ping {
+    fill: var(--accent);
+    opacity: 0.55;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: tv-ping 2.4s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  }
+
+  .tv-marker .tv-marker__core {
+    fill: var(--accent);
+    filter: drop-shadow(0 0 3px var(--accent-glow));
+  }
+
+  .tv-marker:nth-of-type(2) .tv-marker__ping {
+    animation-delay: 1.2s;
+  }
+
+  @keyframes tv-ping {
+    0%   { r: 0.7; opacity: 0.55; }
+    75%  { r: 3; opacity: 0; }
+    100% { r: 3; opacity: 0; }
+  }
+
+  /* Zoom controls */
+  .tv-zoom {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    background: #16171b;
+    border: 1px solid #2a2c33;
+    border-radius: 10px;
+    overflow: hidden;
+    z-index: 6;
+  }
+
+  .tv-zoom button {
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 21px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tv-zoom button:hover {
+    background: #202228;
+  }
+
+  .tv-zoom button + button {
+    border-top: 1px solid #2a2c33;
+  }
+
+  /* Tooltip — appended to <body> and positioned with position:fixed so
+     it always renders above the map/page regardless of ancestor
+     overflow or stacking context, and never gets clipped or fought
+     over by other elements. Only one is ever shown at a time, so two
+     markers can never show overlapping tooltip text. */
+  .tv-tooltip {
+    position: fixed;
+    pointer-events: none;
+    transform: translate(-50%, calc(-100% - 14px));
+    background: #16171b;
+    border: 1px solid #2a2c33;
+    border-radius: 10px;
+    padding: 9px 13px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 99999;
+  }
+
+  .tv-tooltip.is-visible {
+    opacity: 1;
+    transform: translate(-50%, calc(-100% - 20px));
+  }
+
+  .tv-tooltip__place {
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 600;
+    display: block;
+  }
+
+  .tv-tooltip__role {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    display: block;
+    margin-top: 2px;
+  }
+
+  .tv-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #16171b;
+  }
+
+  @media (max-width: 640px) {
+    .tv-locations { padding: 28px 18px 24px; border-radius: 14px; }
+    .tv-locations__legend { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tv-locations">
+  <div class="tv-locations__head">
+    <p class="tv-locations__title">Where we work</p>
+    <div class="tv-locations__legend">
+      <span><i></i>Headquarters &amp; regional office</span>
+    </div>
+  </div>
+
+  <div class="tv-map" id="tvMap">
+    <svg id="tvSvg" viewBox="-2 -2 95 50" xmlns="http://www.w3.org/2000/svg">
+      <g id="tvZoomLayer">
+        <g class="tv-dot-grid" fill="#2a2e38">
+          <circle cx="3.5" cy="0" r="0.42"/><circle cx="14.5" cy="0" r="0.42"/><circle cx="15.5" cy="0" r="0.42"/><circle cx="16.5" cy="0" r="0.42"/><circle cx="19.5" cy="0" r="0.42"/><circle cx="21.5" cy="0" r="0.42"/><circle cx="22.5" cy="0" r="0.42"/><circle cx="23.5" cy="0" r="0.42"/><circle cx="24.5" cy="0" r="0.42"/><circle cx="25.5" cy="0" r="0.42"/><circle cx="31.5" cy="0" r="0.42"/><circle cx="32.5" cy="0" r="0.42"/><circle cx="33.5" cy="0" r="0.42"/><circle cx="34.5" cy="0" r="0.42"/><circle cx="35.5" cy="0" r="0.42"/><circle cx="36.5" cy="0" r="0.42"/><circle cx="37.5" cy="0" r="0.42"/><circle cx="38.5" cy="0" r="0.42"/><circle cx="39.5" cy="0" r="0.42"/><circle cx="60.5" cy="0" r="0.42"/><circle cx="64.5" cy="0" r="0.42"/><circle cx="65.5" cy="0" r="0.42"/><circle cx="66.5" cy="0" r="0.42"/><circle cx="67.5" cy="0" r="0.42"/><circle cx="68.5" cy="0" r="0.42"/><circle cx="69.5" cy="0" r="0.42"/><circle cx="70.5" cy="0" r="0.42"/><circle cx="71.5" cy="0" r="0.42"/><circle cx="72.5" cy="0" r="0.42"/><circle cx="73.5" cy="0" r="0.42"/><circle cx="74.5" cy="0" r="0.42"/><circle cx="75.5" cy="0" r="0.42"/><circle cx="76.5" cy="0" r="0.42"/><circle cx="77.5" cy="0" r="0.42"/><circle cx="78.5" cy="0" r="0.42"/><circle cx="79.5" cy="0" r="0.42"/><circle cx="80.5" cy="0" r="0.42"/><circle cx="81.5" cy="0" r="0.42"/><circle cx="82.5" cy="0" r="0.42"/><circle cx="83.5" cy="0" r="0.42"/><circle cx="84.5" cy="0" r="0.42"/><circle cx="85.5" cy="0" r="0.42"/><circle cx="86.5" cy="0" r="0.42"/><circle cx="2" cy="0.87" r="0.42"/><circle cx="3" cy="0.87" r="0.42"/><circle cx="4" cy="0.87" r="0.42"/><circle cx="5" cy="0.87" r="0.42"/><circle cx="6" cy="0.87" r="0.42"/><circle cx="10" cy="0.87" r="0.42"/><circle cx="11" cy="0.87" r="0.42"/><circle cx="14" cy="0.87" r="0.42"/><circle cx="15" cy="0.87" r="0.42"/><circle cx="16" cy="0.87" r="0.42"/><circle cx="17" cy="0.87" r="0.42"/><circle cx="18" cy="0.87" r="0.42"/><circle cx="19" cy="0.87" r="0.42"/><circle cx="20" cy="0.87" r="0.42"/><circle cx="23" cy="0.87" r="0.42"/><circle cx="24" cy="0.87" r="0.42"/><circle cx="25" cy="0.87" r="0.42"/><circle cx="26" cy="0.87" r="0.42"/><circle cx="27" cy="0.87" r="0.42"/><circle cx="31" cy="0.87" r="0.42"/><circle cx="32" cy="0.87" r="0.42"/><circle cx="33" cy="0.87" r="0.42"/><circle cx="34" cy="0.87" r="0.42"/><circle cx="35" cy="0.87" r="0.42"/><circle cx="36" cy="0.87" r="0.42"/><circle cx="37" cy="0.87" r="0.42"/><circle cx="38" cy="0.87" r="0.42"/><circle cx="39" cy="0.87" r="0.42"/><circle cx="51" cy="0.87" r="0.42"/><circle cx="52" cy="0.87" r="0.42"/><circle cx="53" cy="0.87" r="0.42"/><circle cx="64" cy="0.87" r="0.42"/><circle cx="65" cy="0.87" r="0.42"/><circle cx="66" cy="0.87" r="0.42"/><circle cx="67" cy="0.87" r="0.42"/><circle cx="68" cy="0.87" r="0.42"/><circle cx="69" cy="0.87" r="0.42"/><circle cx="70" cy="0.87" r="0.42"/><circle cx="71" cy="0.87" r="0.42"/><circle cx="72" cy="0.87" r="0.42"/><circle cx="73" cy="0.87" r="0.42"/><circle cx="74" cy="0.87" r="0.42"/><circle cx="75" cy="0.87" r="0.42"/><circle cx="76" cy="0.87" r="0.42"/><circle cx="77" cy="0.87" r="0.42"/><circle cx="78" cy="0.87" r="0.42"/><circle cx="79" cy="0.87" r="0.42"/><circle cx="80" cy="0.87" r="0.42"/><circle cx="81" cy="0.87" r="0.42"/><circle cx="82" cy="0.87" r="0.42"/><circle cx="83" cy="0.87" r="0.42"/><circle cx="84" cy="0.87" r="0.42"/><circle cx="85" cy="0.87" r="0.42"/><circle cx="86" cy="0.87" r="0.42"/><circle cx="87" cy="0.87" r="0.42"/><circle cx="88" cy="0.87" r="0.42"/><circle cx="0.5" cy="1.73" r="0.42"/><circle cx="1.5" cy="1.73" r="0.42"/><circle cx="2.5" cy="1.73" r="0.42"/><circle cx="3.5" cy="1.73" r="0.42"/><circle cx="4.5" cy="1.73" r="0.42"/><circle cx="5.5" cy="1.73" r="0.42"/><circle cx="6.5" cy="1.73" r="0.42"/><circle cx="7.5" cy="1.73" r="0.42"/><circle cx="8.5" cy="1.73" r="0.42"/><circle cx="9.5" cy="1.73" r="0.42"/><circle cx="10.5" cy="1.73" r="0.42"/><circle cx="11.5" cy="1.73" r="0.42"/><circle cx="12.5" cy="1.73" r="0.42"/><circle cx="13.5" cy="1.73" r="0.42"/><circle cx="15.5" cy="1.73" r="0.42"/><circle cx="20.5" cy="1.73" r="0.42"/><circle cx="21.5" cy="1.73" r="0.42"/><circle cx="22.5" cy="1.73" r="0.42"/><circle cx="25.5" cy="1.73" r="0.42"/><circle cx="26.5" cy="1.73" r="0.42"/><circle cx="32.5" cy="1.73" r="0.42"/><circle cx="33.5" cy="1.73" r="0.42"/><circle cx="34.5" cy="1.73" r="0.42"/><circle cx="35.5" cy="1.73" r="0.42"/><circle cx="36.5" cy="1.73" r="0.42"/><circle cx="37.5" cy="1.73" r="0.42"/><circle cx="50.5" cy="1.73" r="0.42"/><circle cx="51.5" cy="1.73" r="0.42"/><circle cx="52.5" cy="1.73" r="0.42"/><circle cx="53.5" cy="1.73" r="0.42"/><circle cx="54.5" cy="1.73" r="0.42"/><circle cx="55.5" cy="1.73" r="0.42"/><circle cx="62.5" cy="1.73" r="0.42"/><circle cx="64.5" cy="1.73" r="0.42"/><circle cx="66.5" cy="1.73" r="0.42"/><circle cx="67.5" cy="1.73" r="0.42"/><circle cx="68.5" cy="1.73" r="0.42"/><circle cx="69.5" cy="1.73" r="0.42"/><circle cx="70.5" cy="1.73" r="0.42"/><circle cx="71.5" cy="1.73" r="0.42"/><circle cx="72.5" cy="1.73" r="0.42"/><circle cx="73.5" cy="1.73" r="0.42"/><circle cx="74.5" cy="1.73" r="0.42"/><circle cx="75.5" cy="1.73" r="0.42"/><circle cx="76.5" cy="1.73" r="0.42"/><circle cx="77.5" cy="1.73" r="0.42"/><circle cx="78.5" cy="1.73" r="0.42"/><circle cx="79.5" cy="1.73" r="0.42"/><circle cx="80.5" cy="1.73" r="0.42"/><circle cx="81.5" cy="1.73" r="0.42"/><circle cx="82.5" cy="1.73" r="0.42"/><circle cx="83.5" cy="1.73" r="0.42"/><circle cx="84.5" cy="1.73" r="0.42"/><circle cx="85.5" cy="1.73" r="0.42"/><circle cx="86.5" cy="1.73" r="0.42"/><circle cx="87.5" cy="1.73" r="0.42"/><circle cx="88.5" cy="1.73" r="0.42"/><circle cx="89.5" cy="1.73" r="0.42"/><circle cx="90.5" cy="1.73" r="0.42"/><circle cx="1" cy="2.6" r="0.42"/><circle cx="2" cy="2.6" r="0.42"/><circle cx="3" cy="2.6" r="0.42"/><circle cx="4" cy="2.6" r="0.42"/><circle cx="5" cy="2.6" r="0.42"/><circle cx="6" cy="2.6" r="0.42"/><circle cx="7" cy="2.6" r="0.42"/><circle cx="8" cy="2.6" r="0.42"/><circle cx="9" cy="2.6" r="0.42"/><circle cx="10" cy="2.6" r="0.42"/><circle cx="11" cy="2.6" r="0.42"/><circle cx="12" cy="2.6" r="0.42"/><circle cx="13" cy="2.6" r="0.42"/><circle cx="14" cy="2.6" r="0.42"/><circle cx="15" cy="2.6" r="0.42"/><circle cx="17" cy="2.6" r="0.42"/><circle cx="18" cy="2.6" r="0.42"/><circle cx="19" cy="2.6" r="0.42"/><circle cx="20" cy="2.6" r="0.42"/><circle cx="21" cy="2.6" r="0.42"/><circle cx="23" cy="2.6" r="0.42"/><circle cx="25" cy="2.6" r="0.42"/><circle cx="26" cy="2.6" r="0.42"/><circle cx="27" cy="2.6" r="0.42"/><circle cx="28" cy="2.6" r="0.42"/><circle cx="31" cy="2.6" r="0.42"/><circle cx="32" cy="2.6" r="0.42"/><circle cx="33" cy="2.6" r="0.42"/><circle cx="34" cy="2.6" r="0.42"/><circle cx="35" cy="2.6" r="0.42"/><circle cx="36" cy="2.6" r="0.42"/><circle cx="50" cy="2.6" r="0.42"/><circle cx="51" cy="2.6" r="0.42"/><circle cx="52" cy="2.6" r="0.42"/><circle cx="53" cy="2.6" r="0.42"/><circle cx="54" cy="2.6" r="0.42"/><circle cx="55" cy="2.6" r="0.42"/><circle cx="56" cy="2.6" r="0.42"/><circle cx="59" cy="2.6" r="0.42"/><circle cx="60" cy="2.6" r="0.42"/><circle cx="61" cy="2.6" r="0.42"/><circle cx="62" cy="2.6" r="0.42"/><circle cx="63" cy="2.6" r="0.42"/><circle cx="64" cy="2.6" r="0.42"/><circle cx="65" cy="2.6" r="0.42"/><circle cx="66" cy="2.6" r="0.42"/><circle cx="67" cy="2.6" r="0.42"/><circle cx="68" cy="2.6" r="0.42"/><circle cx="69" cy="2.6" r="0.42"/><circle cx="70" cy="2.6" r="0.42"/><circle cx="71" cy="2.6" r="0.42"/><circle cx="72" cy="2.6" r="0.42"/><circle cx="73" cy="2.6" r="0.42"/><circle cx="74" cy="2.6" r="0.42"/><circle cx="75" cy="2.6" r="0.42"/><circle cx="76" cy="2.6" r="0.42"/><circle cx="77" cy="2.6" r="0.42"/><circle cx="78" cy="2.6" r="0.42"/><circle cx="79" cy="2.6" r="0.42"/><circle cx="80" cy="2.6" r="0.42"/><circle cx="81" cy="2.6" r="0.42"/><circle cx="82" cy="2.6" r="0.42"/><circle cx="83" cy="2.6" r="0.42"/><circle cx="84" cy="2.6" r="0.42"/><circle cx="85" cy="2.6" r="0.42"/><circle cx="86" cy="2.6" r="0.42"/><circle cx="87" cy="2.6" r="0.42"/><circle cx="88" cy="2.6" r="0.42"/><circle cx="89" cy="2.6" r="0.42"/><circle cx="90" cy="2.6" r="0.42"/><circle cx="2.5" cy="3.46" r="0.42"/><circle cx="3.5" cy="3.46" r="0.42"/><circle cx="4.5" cy="3.46" r="0.42"/><circle cx="5.5" cy="3.46" r="0.42"/><circle cx="6.5" cy="3.46" r="0.42"/><circle cx="7.5" cy="3.46" r="0.42"/><circle cx="8.5" cy="3.46" r="0.42"/><circle cx="9.5" cy="3.46" r="0.42"/><circle cx="10.5" cy="3.46" r="0.42"/><circle cx="11.5" cy="3.46" r="0.42"/><circle cx="12.5" cy="3.46" r="0.42"/><circle cx="13.5" cy="3.46" r="0.42"/><circle cx="14.5" cy="3.46" r="0.42"/><circle cx="15.5" cy="3.46" r="0.42"/><circle cx="16.5" cy="3.46" r="0.42"/><circle cx="17.5" cy="3.46" r="0.42"/><circle cx="18.5" cy="3.46" r="0.42"/><circle cx="19.5" cy="3.46" r="0.42"/><circle cx="20.5" cy="3.46" r="0.42"/><circle cx="21.5" cy="3.46" r="0.42"/><circle cx="22.5" cy="3.46" r="0.42"/><circle cx="25.5" cy="3.46" r="0.42"/><circle cx="26.5" cy="3.46" r="0.42"/><circle cx="27.5" cy="3.46" r="0.42"/><circle cx="28.5" cy="3.46" r="0.42"/><circle cx="31.5" cy="3.46" r="0.42"/><circle cx="32.5" cy="3.46" r="0.42"/><circle cx="33.5" cy="3.46" r="0.42"/><circle cx="34.5" cy="3.46" r="0.42"/><circle cx="35.5" cy="3.46" r="0.42"/><circle cx="39.5" cy="3.46" r="0.42"/><circle cx="41.5" cy="3.46" r="0.42"/><circle cx="49.5" cy="3.46" r="0.42"/><circle cx="50.5" cy="3.46" r="0.42"/><circle cx="51.5" cy="3.46" r="0.42"/><circle cx="52.5" cy="3.46" r="0.42"/><circle cx="53.5" cy="3.46" r="0.42"/><circle cx="54.5" cy="3.46" r="0.42"/><circle cx="55.5" cy="3.46" r="0.42"/><circle cx="57.5" cy="3.46" r="0.42"/><circle cx="58.5" cy="3.46" r="0.42"/><circle cx="59.5" cy="3.46" r="0.42"/><circle cx="60.5" cy="3.46" r="0.42"/><circle cx="61.5" cy="3.46" r="0.42"/><circle cx="62.5" cy="3.46" r="0.42"/><circle cx="63.5" cy="3.46" r="0.42"/><circle cx="64.5" cy="3.46" r="0.42"/><circle cx="65.5" cy="3.46" r="0.42"/><circle cx="66.5" cy="3.46" r="0.42"/><circle cx="67.5" cy="3.46" r="0.42"/><circle cx="68.5" cy="3.46" r="0.42"/><circle cx="69.5" cy="3.46" r="0.42"/><circle cx="70.5" cy="3.46" r="0.42"/><circle cx="71.5" cy="3.46" r="0.42"/><circle cx="72.5" cy="3.46" r="0.42"/><circle cx="73.5" cy="3.46" r="0.42"/><circle cx="74.5" cy="3.46" r="0.42"/><circle cx="75.5" cy="3.46" r="0.42"/><circle cx="76.5" cy="3.46" r="0.42"/><circle cx="77.5" cy="3.46" r="0.42"/><circle cx="78.5" cy="3.46" r="0.42"/><circle cx="79.5" cy="3.46" r="0.42"/><circle cx="80.5" cy="3.46" r="0.42"/><circle cx="81.5" cy="3.46" r="0.42"/><circle cx="82.5" cy="3.46" r="0.42"/><circle cx="83.5" cy="3.46" r="0.42"/><circle cx="84.5" cy="3.46" r="0.42"/><circle cx="85.5" cy="3.46" r="0.42"/><circle cx="86.5" cy="3.46" r="0.42"/><circle cx="87.5" cy="3.46" r="0.42"/><circle cx="88.5" cy="3.46" r="0.42"/><circle cx="89.5" cy="3.46" r="0.42"/><circle cx="90.5" cy="3.46" r="0.42"/><circle cx="1" cy="4.33" r="0.42"/><circle cx="2" cy="4.33" r="0.42"/><circle cx="3" cy="4.33" r="0.42"/><circle cx="4" cy="4.33" r="0.42"/><circle cx="5" cy="4.33" r="0.42"/><circle cx="6" cy="4.33" r="0.42"/><circle cx="7" cy="4.33" r="0.42"/><circle cx="8" cy="4.33" r="0.42"/><circle cx="9" cy="4.33" r="0.42"/><circle cx="10" cy="4.33" r="0.42"/><circle cx="11" cy="4.33" r="0.42"/><circle cx="12" cy="4.33" r="0.42"/><circle cx="13" cy="4.33" r="0.42"/><circle cx="14" cy="4.33" r="0.42"/><circle cx="15" cy="4.33" r="0.42"/><circle cx="16" cy="4.33" r="0.42"/><circle cx="17" cy="4.33" r="0.42"/><circle cx="18" cy="4.33" r="0.42"/><circle cx="19" cy="4.33" r="0.42"/><circle cx="20" cy="4.33" r="0.42"/><circle cx="21" cy="4.33" r="0.42"/><circle cx="25" cy="4.33" r="0.42"/><circle cx="26" cy="4.33" r="0.42"/><circle cx="27" cy="4.33" r="0.42"/><circle cx="32" cy="4.33" r="0.42"/><circle cx="33" cy="4.33" r="0.42"/><circle cx="34" cy="4.33" r="0.42"/><circle cx="40" cy="4.33" r="0.42"/><circle cx="41" cy="4.33" r="0.42"/><circle cx="49" cy="4.33" r="0.42"/><circle cx="50" cy="4.33" r="0.42"/><circle cx="51" cy="4.33" r="0.42"/><circle cx="53" cy="4.33" r="0.42"/><circle cx="54" cy="4.33" r="0.42"/><circle cx="57" cy="4.33" r="0.42"/><circle cx="58" cy="4.33" r="0.42"/><circle cx="59" cy="4.33" r="0.42"/><circle cx="60" cy="4.33" r="0.42"/><circle cx="61" cy="4.33" r="0.42"/><circle cx="62" cy="4.33" r="0.42"/><circle cx="63" cy="4.33" r="0.42"/><circle cx="64" cy="4.33" r="0.42"/><circle cx="65" cy="4.33" r="0.42"/><circle cx="66" cy="4.33" r="0.42"/><circle cx="67" cy="4.33" r="0.42"/><circle cx="68" cy="4.33" r="0.42"/><circle cx="69" cy="4.33" r="0.42"/><circle cx="70" cy="4.33" r="0.42"/><circle cx="71" cy="4.33" r="0.42"/><circle cx="72" cy="4.33" r="0.42"/><circle cx="73" cy="4.33" r="0.42"/><circle cx="74" cy="4.33" r="0.42"/><circle cx="75" cy="4.33" r="0.42"/><circle cx="76" cy="4.33" r="0.42"/><circle cx="77" cy="4.33" r="0.42"/><circle cx="78" cy="4.33" r="0.42"/><circle cx="79" cy="4.33" r="0.42"/><circle cx="80" cy="4.33" r="0.42"/><circle cx="81" cy="4.33" r="0.42"/><circle cx="82" cy="4.33" r="0.42"/><circle cx="83" cy="4.33" r="0.42"/><circle cx="84" cy="4.33" r="0.42"/><circle cx="85" cy="4.33" r="0.42"/><circle cx="86" cy="4.33" r="0.42"/><circle cx="87" cy="4.33" r="0.42"/><circle cx="88" cy="4.33" r="0.42"/><circle cx="89" cy="4.33" r="0.42"/><circle cx="90" cy="4.33" r="0.42"/><circle cx="2.5" cy="5.2" r="0.42"/><circle cx="3.5" cy="5.2" r="0.42"/><circle cx="4.5" cy="5.2" r="0.42"/><circle cx="5.5" cy="5.2" r="0.42"/><circle cx="6.5" cy="5.2" r="0.42"/><circle cx="7.5" cy="5.2" r="0.42"/><circle cx="8.5" cy="5.2" r="0.42"/><circle cx="9.5" cy="5.2" r="0.42"/><circle cx="10.5" cy="5.2" r="0.42"/><circle cx="11.5" cy="5.2" r="0.42"/><circle cx="12.5" cy="5.2" r="0.42"/><circle cx="13.5" cy="5.2" r="0.42"/><circle cx="14.5" cy="5.2" r="0.42"/><circle cx="15.5" cy="5.2" r="0.42"/><circle cx="16.5" cy="5.2" r="0.42"/><circle cx="17.5" cy="5.2" r="0.42"/><circle cx="18.5" cy="5.2" r="0.42"/><circle cx="19.5" cy="5.2" r="0.42"/><circle cx="20.5" cy="5.2" r="0.42"/><circle cx="22.5" cy="5.2" r="0.42"/><circle cx="23.5" cy="5.2" r="0.42"/><circle cx="26.5" cy="5.2" r="0.42"/><circle cx="27.5" cy="5.2" r="0.42"/><circle cx="32.5" cy="5.2" r="0.42"/><circle cx="33.5" cy="5.2" r="0.42"/><circle cx="40.5" cy="5.2" r="0.42"/><circle cx="48.5" cy="5.2" r="0.42"/><circle cx="49.5" cy="5.2" r="0.42"/><circle cx="50.5" cy="5.2" r="0.42"/><circle cx="52.5" cy="5.2" r="0.42"/><circle cx="53.5" cy="5.2" r="0.42"/><circle cx="54.5" cy="5.2" r="0.42"/><circle cx="55.5" cy="5.2" r="0.42"/><circle cx="56.5" cy="5.2" r="0.42"/><circle cx="57.5" cy="5.2" r="0.42"/><circle cx="58.5" cy="5.2" r="0.42"/><circle cx="59.5" cy="5.2" r="0.42"/><circle cx="60.5" cy="5.2" r="0.42"/><circle cx="61.5" cy="5.2" r="0.42"/><circle cx="62.5" cy="5.2" r="0.42"/><circle cx="63.5" cy="5.2" r="0.42"/><circle cx="64.5" cy="5.2" r="0.42"/><circle cx="65.5" cy="5.2" r="0.42"/><circle cx="66.5" cy="5.2" r="0.42"/><circle cx="67.5" cy="5.2" r="0.42"/><circle cx="68.5" cy="5.2" r="0.42"/><circle cx="69.5" cy="5.2" r="0.42"/><circle cx="70.5" cy="5.2" r="0.42"/><circle cx="71.5" cy="5.2" r="0.42"/><circle cx="72.5" cy="5.2" r="0.42"/><circle cx="73.5" cy="5.2" r="0.42"/><circle cx="74.5" cy="5.2" r="0.42"/><circle cx="75.5" cy="5.2" r="0.42"/><circle cx="76.5" cy="5.2" r="0.42"/><circle cx="77.5" cy="5.2" r="0.42"/><circle cx="78.5" cy="5.2" r="0.42"/><circle cx="79.5" cy="5.2" r="0.42"/><circle cx="80.5" cy="5.2" r="0.42"/><circle cx="81.5" cy="5.2" r="0.42"/><circle cx="82.5" cy="5.2" r="0.42"/><circle cx="83.5" cy="5.2" r="0.42"/><circle cx="84.5" cy="5.2" r="0.42"/><circle cx="85.5" cy="5.2" r="0.42"/><circle cx="86.5" cy="5.2" r="0.42"/><circle cx="87.5" cy="5.2" r="0.42"/><circle cx="88.5" cy="5.2" r="0.42"/><circle cx="89.5" cy="5.2" r="0.42"/><circle cx="90.5" cy="5.2" r="0.42"/><circle cx="1" cy="6.06" r="0.42"/><circle cx="2" cy="6.06" r="0.42"/><circle cx="3" cy="6.06" r="0.42"/><circle cx="4" cy="6.06" r="0.42"/><circle cx="5" cy="6.06" r="0.42"/><circle cx="6" cy="6.06" r="0.42"/><circle cx="7" cy="6.06" r="0.42"/><circle cx="8" cy="6.06" r="0.42"/><circle cx="9" cy="6.06" r="0.42"/><circle cx="10" cy="6.06" r="0.42"/><circle cx="11" cy="6.06" r="0.42"/><circle cx="12" cy="6.06" r="0.42"/><circle cx="13" cy="6.06" r="0.42"/><circle cx="14" cy="6.06" r="0.42"/><circle cx="15" cy="6.06" r="0.42"/><circle cx="16" cy="6.06" r="0.42"/><circle cx="17" cy="6.06" r="0.42"/><circle cx="18" cy="6.06" r="0.42"/><circle cx="19" cy="6.06" r="0.42"/><circle cx="20" cy="6.06" r="0.42"/><circle cx="23" cy="6.06" r="0.42"/><circle cx="24" cy="6.06" r="0.42"/><circle cx="25" cy="6.06" r="0.42"/><circle cx="33" cy="6.06" r="0.42"/><circle cx="47" cy="6.06" r="0.42"/><circle cx="48" cy="6.06" r="0.42"/><circle cx="49" cy="6.06" r="0.42"/><circle cx="50" cy="6.06" r="0.42"/><circle cx="52" cy="6.06" r="0.42"/><circle cx="53" cy="6.06" r="0.42"/><circle cx="54" cy="6.06" r="0.42"/><circle cx="55" cy="6.06" r="0.42"/><circle cx="56" cy="6.06" r="0.42"/><circle cx="57" cy="6.06" r="0.42"/><circle cx="58" cy="6.06" r="0.42"/><circle cx="59" cy="6.06" r="0.42"/><circle cx="60" cy="6.06" r="0.42"/><circle cx="61" cy="6.06" r="0.42"/><circle cx="62" cy="6.06" r="0.42"/><circle cx="63" cy="6.06" r="0.42"/><circle cx="64" cy="6.06" r="0.42"/><circle cx="65" cy="6.06" r="0.42"/><circle cx="66" cy="6.06" r="0.42"/><circle cx="67" cy="6.06" r="0.42"/><circle cx="68" cy="6.06" r="0.42"/><circle cx="69" cy="6.06" r="0.42"/><circle cx="70" cy="6.06" r="0.42"/><circle cx="71" cy="6.06" r="0.42"/><circle cx="72" cy="6.06" r="0.42"/><circle cx="73" cy="6.06" r="0.42"/><circle cx="74" cy="6.06" r="0.42"/><circle cx="75" cy="6.06" r="0.42"/><circle cx="76" cy="6.06" r="0.42"/><circle cx="77" cy="6.06" r="0.42"/><circle cx="78" cy="6.06" r="0.42"/><circle cx="79" cy="6.06" r="0.42"/><circle cx="80" cy="6.06" r="0.42"/><circle cx="81" cy="6.06" r="0.42"/><circle cx="82" cy="6.06" r="0.42"/><circle cx="83" cy="6.06" r="0.42"/><circle cx="84" cy="6.06" r="0.42"/><circle cx="85" cy="6.06" r="0.42"/><circle cx="86" cy="6.06" r="0.42"/><circle cx="87" cy="6.06" r="0.42"/><circle cx="88" cy="6.06" r="0.42"/><circle cx="89" cy="6.06" r="0.42"/><circle cx="90" cy="6.06" r="0.42"/><circle cx="1.5" cy="6.93" r="0.42"/><circle cx="2.5" cy="6.93" r="0.42"/><circle cx="3.5" cy="6.93" r="0.42"/><circle cx="4.5" cy="6.93" r="0.42"/><circle cx="6.5" cy="6.93" r="0.42"/><circle cx="7.5" cy="6.93" r="0.42"/><circle cx="8.5" cy="6.93" r="0.42"/><circle cx="9.5" cy="6.93" r="0.42"/><circle cx="10.5" cy="6.93" r="0.42"/><circle cx="11.5" cy="6.93" r="0.42"/><circle cx="12.5" cy="6.93" r="0.42"/><circle cx="13.5" cy="6.93" r="0.42"/><circle cx="14.5" cy="6.93" r="0.42"/><circle cx="15.5" cy="6.93" r="0.42"/><circle cx="16.5" cy="6.93" r="0.42"/><circle cx="17.5" cy="6.93" r="0.42"/><circle cx="18.5" cy="6.93" r="0.42"/><circle cx="19.5" cy="6.93" r="0.42"/><circle cx="24.5" cy="6.93" r="0.42"/><circle cx="25.5" cy="6.93" r="0.42"/><circle cx="26.5" cy="6.93" r="0.42"/><circle cx="33.5" cy="6.93" r="0.42"/><circle cx="47.5" cy="6.93" r="0.42"/><circle cx="48.5" cy="6.93" r="0.42"/><circle cx="49.5" cy="6.93" r="0.42"/><circle cx="51.5" cy="6.93" r="0.42"/><circle cx="52.5" cy="6.93" r="0.42"/><circle cx="53.5" cy="6.93" r="0.42"/><circle cx="54.5" cy="6.93" r="0.42"/><circle cx="55.5" cy="6.93" r="0.42"/><circle cx="56.5" cy="6.93" r="0.42"/><circle cx="57.5" cy="6.93" r="0.42"/><circle cx="58.5" cy="6.93" r="0.42"/><circle cx="59.5" cy="6.93" r="0.42"/><circle cx="60.5" cy="6.93" r="0.42"/><circle cx="61.5" cy="6.93" r="0.42"/><circle cx="62.5" cy="6.93" r="0.42"/><circle cx="63.5" cy="6.93" r="0.42"/><circle cx="64.5" cy="6.93" r="0.42"/><circle cx="65.5" cy="6.93" r="0.42"/><circle cx="66.5" cy="6.93" r="0.42"/><circle cx="67.5" cy="6.93" r="0.42"/><circle cx="68.5" cy="6.93" r="0.42"/><circle cx="69.5" cy="6.93" r="0.42"/><circle cx="70.5" cy="6.93" r="0.42"/><circle cx="71.5" cy="6.93" r="0.42"/><circle cx="72.5" cy="6.93" r="0.42"/><circle cx="73.5" cy="6.93" r="0.42"/><circle cx="74.5" cy="6.93" r="0.42"/><circle cx="75.5" cy="6.93" r="0.42"/><circle cx="76.5" cy="6.93" r="0.42"/><circle cx="77.5" cy="6.93" r="0.42"/><circle cx="78.5" cy="6.93" r="0.42"/><circle cx="79.5" cy="6.93" r="0.42"/><circle cx="80.5" cy="6.93" r="0.42"/><circle cx="81.5" cy="6.93" r="0.42"/><circle cx="82.5" cy="6.93" r="0.42"/><circle cx="83.5" cy="6.93" r="0.42"/><circle cx="84.5" cy="6.93" r="0.42"/><circle cx="85.5" cy="6.93" r="0.42"/><circle cx="86.5" cy="6.93" r="0.42"/><circle cx="87.5" cy="6.93" r="0.42"/><circle cx="90.5" cy="6.93" r="0.42"/><circle cx="2" cy="7.79" r="0.42"/><circle cx="3" cy="7.79" r="0.42"/><circle cx="8" cy="7.79" r="0.42"/><circle cx="9" cy="7.79" r="0.42"/><circle cx="10" cy="7.79" r="0.42"/><circle cx="11" cy="7.79" r="0.42"/><circle cx="12" cy="7.79" r="0.42"/><circle cx="13" cy="7.79" r="0.42"/><circle cx="14" cy="7.79" r="0.42"/><circle cx="15" cy="7.79" r="0.42"/><circle cx="16" cy="7.79" r="0.42"/><circle cx="17" cy="7.79" r="0.42"/><circle cx="18" cy="7.79" r="0.42"/><circle cx="19" cy="7.79" r="0.42"/><circle cx="25" cy="7.79" r="0.42"/><circle cx="26" cy="7.79" r="0.42"/><circle cx="28" cy="7.79" r="0.42"/><circle cx="47" cy="7.79" r="0.42"/><circle cx="48" cy="7.79" r="0.42"/><circle cx="49" cy="7.79" r="0.42"/><circle cx="50" cy="7.79" r="0.42"/><circle cx="52" cy="7.79" r="0.42"/><circle cx="53" cy="7.79" r="0.42"/><circle cx="54" cy="7.79" r="0.42"/><circle cx="55" cy="7.79" r="0.42"/><circle cx="56" cy="7.79" r="0.42"/><circle cx="57" cy="7.79" r="0.42"/><circle cx="58" cy="7.79" r="0.42"/><circle cx="59" cy="7.79" r="0.42"/><circle cx="60" cy="7.79" r="0.42"/><circle cx="61" cy="7.79" r="0.42"/><circle cx="62" cy="7.79" r="0.42"/><circle cx="63" cy="7.79" r="0.42"/><circle cx="64" cy="7.79" r="0.42"/><circle cx="65" cy="7.79" r="0.42"/><circle cx="66" cy="7.79" r="0.42"/><circle cx="67" cy="7.79" r="0.42"/><circle cx="68" cy="7.79" r="0.42"/><circle cx="69" cy="7.79" r="0.42"/><circle cx="70" cy="7.79" r="0.42"/><circle cx="71" cy="7.79" r="0.42"/><circle cx="72" cy="7.79" r="0.42"/><circle cx="73" cy="7.79" r="0.42"/><circle cx="74" cy="7.79" r="0.42"/><circle cx="75" cy="7.79" r="0.42"/><circle cx="76" cy="7.79" r="0.42"/><circle cx="77" cy="7.79" r="0.42"/><circle cx="78" cy="7.79" r="0.42"/><circle cx="79" cy="7.79" r="0.42"/><circle cx="80" cy="7.79" r="0.42"/><circle cx="81" cy="7.79" r="0.42"/><circle cx="82" cy="7.79" r="0.42"/><circle cx="83" cy="7.79" r="0.42"/><circle cx="84" cy="7.79" r="0.42"/><circle cx="87" cy="7.79" r="0.42"/><circle cx="89" cy="7.79" r="0.42"/><circle cx="9.5" cy="8.66" r="0.42"/><circle cx="10.5" cy="8.66" r="0.42"/><circle cx="11.5" cy="8.66" r="0.42"/><circle cx="12.5" cy="8.66" r="0.42"/><circle cx="13.5" cy="8.66" r="0.42"/><circle cx="14.5" cy="8.66" r="0.42"/><circle cx="15.5" cy="8.66" r="0.42"/><circle cx="16.5" cy="8.66" r="0.42"/><circle cx="17.5" cy="8.66" r="0.42"/><circle cx="18.5" cy="8.66" r="0.42"/><circle cx="19.5" cy="8.66" r="0.42"/><circle cx="25.5" cy="8.66" r="0.42"/><circle cx="26.5" cy="8.66" r="0.42"/><circle cx="27.5" cy="8.66" r="0.42"/><circle cx="28.5" cy="8.66" r="0.42"/><circle cx="44.5" cy="8.66" r="0.42"/><circle cx="49.5" cy="8.66" r="0.42"/><circle cx="50.5" cy="8.66" r="0.42"/><circle cx="51.5" cy="8.66" r="0.42"/><circle cx="52.5" cy="8.66" r="0.42"/><circle cx="53.5" cy="8.66" r="0.42"/><circle cx="54.5" cy="8.66" r="0.42"/><circle cx="55.5" cy="8.66" r="0.42"/><circle cx="56.5" cy="8.66" r="0.42"/><circle cx="57.5" cy="8.66" r="0.42"/><circle cx="58.5" cy="8.66" r="0.42"/><circle cx="59.5" cy="8.66" r="0.42"/><circle cx="60.5" cy="8.66" r="0.42"/><circle cx="61.5" cy="8.66" r="0.42"/><circle cx="62.5" cy="8.66" r="0.42"/><circle cx="63.5" cy="8.66" r="0.42"/><circle cx="64.5" cy="8.66" r="0.42"/><circle cx="65.5" cy="8.66" r="0.42"/><circle cx="66.5" cy="8.66" r="0.42"/><circle cx="67.5" cy="8.66" r="0.42"/><circle cx="68.5" cy="8.66" r="0.42"/><circle cx="69.5" cy="8.66" r="0.42"/><circle cx="70.5" cy="8.66" r="0.42"/><circle cx="71.5" cy="8.66" r="0.42"/><circle cx="72.5" cy="8.66" r="0.42"/><circle cx="73.5" cy="8.66" r="0.42"/><circle cx="74.5" cy="8.66" r="0.42"/><circle cx="75.5" cy="8.66" r="0.42"/><circle cx="76.5" cy="8.66" r="0.42"/><circle cx="77.5" cy="8.66" r="0.42"/><circle cx="78.5" cy="8.66" r="0.42"/><circle cx="79.5" cy="8.66" r="0.42"/><circle cx="80.5" cy="8.66" r="0.42"/><circle cx="81.5" cy="8.66" r="0.42"/><circle cx="82.5" cy="8.66" r="0.42"/><circle cx="88.5" cy="8.66" r="0.42"/><circle cx="89.5" cy="8.66" r="0.42"/><circle cx="2" cy="9.53" r="0.42"/><circle cx="10" cy="9.53" r="0.42"/><circle cx="11" cy="9.53" r="0.42"/><circle cx="12" cy="9.53" r="0.42"/><circle cx="13" cy="9.53" r="0.42"/><circle cx="14" cy="9.53" r="0.42"/><circle cx="15" cy="9.53" r="0.42"/><circle cx="16" cy="9.53" r="0.42"/><circle cx="17" cy="9.53" r="0.42"/><circle cx="18" cy="9.53" r="0.42"/><circle cx="19" cy="9.53" r="0.42"/><circle cx="20" cy="9.53" r="0.42"/><circle cx="21" cy="9.53" r="0.42"/><circle cx="22" cy="9.53" r="0.42"/><circle cx="25" cy="9.53" r="0.42"/><circle cx="26" cy="9.53" r="0.42"/><circle cx="27" cy="9.53" r="0.42"/><circle cx="28" cy="9.53" r="0.42"/><circle cx="29" cy="9.53" r="0.42"/><circle cx="44" cy="9.53" r="0.42"/><circle cx="48" cy="9.53" r="0.42"/><circle cx="49" cy="9.53" r="0.42"/><circle cx="52" cy="9.53" r="0.42"/><circle cx="53" cy="9.53" r="0.42"/><circle cx="54" cy="9.53" r="0.42"/><circle cx="55" cy="9.53" r="0.42"/><circle cx="56" cy="9.53" r="0.42"/><circle cx="57" cy="9.53" r="0.42"/><circle cx="58" cy="9.53" r="0.42"/><circle cx="59" cy="9.53" r="0.42"/><circle cx="60" cy="9.53" r="0.42"/><circle cx="61" cy="9.53" r="0.42"/><circle cx="62" cy="9.53" r="0.42"/><circle cx="63" cy="9.53" r="0.42"/><circle cx="64" cy="9.53" r="0.42"/><circle cx="65" cy="9.53" r="0.42"/><circle cx="66" cy="9.53" r="0.42"/><circle cx="67" cy="9.53" r="0.42"/><circle cx="68" cy="9.53" r="0.42"/><circle cx="69" cy="9.53" r="0.42"/><circle cx="70" cy="9.53" r="0.42"/><circle cx="71" cy="9.53" r="0.42"/><circle cx="72" cy="9.53" r="0.42"/><circle cx="73" cy="9.53" r="0.42"/><circle cx="74" cy="9.53" r="0.42"/><circle cx="75" cy="9.53" r="0.42"/><circle cx="76" cy="9.53" r="0.42"/><circle cx="77" cy="9.53" r="0.42"/><circle cx="78" cy="9.53" r="0.42"/><circle cx="79" cy="9.53" r="0.42"/><circle cx="80" cy="9.53" r="0.42"/><circle cx="81" cy="9.53" r="0.42"/><circle cx="82" cy="9.53" r="0.42"/><circle cx="88" cy="9.53" r="0.42"/><circle cx="89" cy="9.53" r="0.42"/><circle cx="9.5" cy="10.39" r="0.42"/><circle cx="10.5" cy="10.39" r="0.42"/><circle cx="11.5" cy="10.39" r="0.42"/><circle cx="12.5" cy="10.39" r="0.42"/><circle cx="13.5" cy="10.39" r="0.42"/><circle cx="14.5" cy="10.39" r="0.42"/><circle cx="15.5" cy="10.39" r="0.42"/><circle cx="16.5" cy="10.39" r="0.42"/><circle cx="17.5" cy="10.39" r="0.42"/><circle cx="18.5" cy="10.39" r="0.42"/><circle cx="19.5" cy="10.39" r="0.42"/><circle cx="20.5" cy="10.39" r="0.42"/><circle cx="21.5" cy="10.39" r="0.42"/><circle cx="22.5" cy="10.39" r="0.42"/><circle cx="24.5" cy="10.39" r="0.42"/><circle cx="25.5" cy="10.39" r="0.42"/><circle cx="26.5" cy="10.39" r="0.42"/><circle cx="27.5" cy="10.39" r="0.42"/><circle cx="28.5" cy="10.39" r="0.42"/><circle cx="29.5" cy="10.39" r="0.42"/><circle cx="43.5" cy="10.39" r="0.42"/><circle cx="48.5" cy="10.39" r="0.42"/><circle cx="49.5" cy="10.39" r="0.42"/><circle cx="50.5" cy="10.39" r="0.42"/><circle cx="51.5" cy="10.39" r="0.42"/><circle cx="52.5" cy="10.39" r="0.42"/><circle cx="53.5" cy="10.39" r="0.42"/><circle cx="54.5" cy="10.39" r="0.42"/><circle cx="55.5" cy="10.39" r="0.42"/><circle cx="56.5" cy="10.39" r="0.42"/><circle cx="57.5" cy="10.39" r="0.42"/><circle cx="58.5" cy="10.39" r="0.42"/><circle cx="59.5" cy="10.39" r="0.42"/><circle cx="60.5" cy="10.39" r="0.42"/><circle cx="61.5" cy="10.39" r="0.42"/><circle cx="62.5" cy="10.39" r="0.42"/><circle cx="63.5" cy="10.39" r="0.42"/><circle cx="64.5" cy="10.39" r="0.42"/><circle cx="65.5" cy="10.39" r="0.42"/><circle cx="66.5" cy="10.39" r="0.42"/><circle cx="67.5" cy="10.39" r="0.42"/><circle cx="68.5" cy="10.39" r="0.42"/><circle cx="69.5" cy="10.39" r="0.42"/><circle cx="70.5" cy="10.39" r="0.42"/><circle cx="71.5" cy="10.39" r="0.42"/><circle cx="72.5" cy="10.39" r="0.42"/><circle cx="73.5" cy="10.39" r="0.42"/><circle cx="74.5" cy="10.39" r="0.42"/><circle cx="75.5" cy="10.39" r="0.42"/><circle cx="76.5" cy="10.39" r="0.42"/><circle cx="77.5" cy="10.39" r="0.42"/><circle cx="78.5" cy="10.39" r="0.42"/><circle cx="79.5" cy="10.39" r="0.42"/><circle cx="80.5" cy="10.39" r="0.42"/><circle cx="81.5" cy="10.39" r="0.42"/><circle cx="82.5" cy="10.39" r="0.42"/><circle cx="83.5" cy="10.39" r="0.42"/><circle cx="88.5" cy="10.39" r="0.42"/><circle cx="11" cy="11.26" r="0.42"/><circle cx="12" cy="11.26" r="0.42"/><circle cx="13" cy="11.26" r="0.42"/><circle cx="14" cy="11.26" r="0.42"/><circle cx="15" cy="11.26" r="0.42"/><circle cx="16" cy="11.26" r="0.42"/><circle cx="17" cy="11.26" r="0.42"/><circle cx="18" cy="11.26" r="0.42"/><circle cx="19" cy="11.26" r="0.42"/><circle cx="20" cy="11.26" r="0.42"/><circle cx="21" cy="11.26" r="0.42"/><circle cx="22" cy="11.26" r="0.42"/><circle cx="23" cy="11.26" r="0.42"/><circle cx="25" cy="11.26" r="0.42"/><circle cx="26" cy="11.26" r="0.42"/><circle cx="27" cy="11.26" r="0.42"/><circle cx="28" cy="11.26" r="0.42"/><circle cx="29" cy="11.26" r="0.42"/><circle cx="30" cy="11.26" r="0.42"/><circle cx="43" cy="11.26" r="0.42"/><circle cx="45" cy="11.26" r="0.42"/><circle cx="47" cy="11.26" r="0.42"/><circle cx="48" cy="11.26" r="0.42"/><circle cx="49" cy="11.26" r="0.42"/><circle cx="50" cy="11.26" r="0.42"/><circle cx="51" cy="11.26" r="0.42"/><circle cx="52" cy="11.26" r="0.42"/><circle cx="53" cy="11.26" r="0.42"/><circle cx="54" cy="11.26" r="0.42"/><circle cx="55" cy="11.26" r="0.42"/><circle cx="56" cy="11.26" r="0.42"/><circle cx="57" cy="11.26" r="0.42"/><circle cx="58" cy="11.26" r="0.42"/><circle cx="59" cy="11.26" r="0.42"/><circle cx="60" cy="11.26" r="0.42"/><circle cx="61" cy="11.26" r="0.42"/><circle cx="62" cy="11.26" r="0.42"/><circle cx="63" cy="11.26" r="0.42"/><circle cx="64" cy="11.26" r="0.42"/><circle cx="65" cy="11.26" r="0.42"/><circle cx="66" cy="11.26" r="0.42"/><circle cx="67" cy="11.26" r="0.42"/><circle cx="68" cy="11.26" r="0.42"/><circle cx="69" cy="11.26" r="0.42"/><circle cx="70" cy="11.26" r="0.42"/><circle cx="71" cy="11.26" r="0.42"/><circle cx="72" cy="11.26" r="0.42"/><circle cx="73" cy="11.26" r="0.42"/><circle cx="74" cy="11.26" r="0.42"/><circle cx="75" cy="11.26" r="0.42"/><circle cx="76" cy="11.26" r="0.42"/><circle cx="77" cy="11.26" r="0.42"/><circle cx="78" cy="11.26" r="0.42"/><circle cx="79" cy="11.26" r="0.42"/><circle cx="80" cy="11.26" r="0.42"/><circle cx="81" cy="11.26" r="0.42"/><circle cx="82" cy="11.26" r="0.42"/><circle cx="83" cy="11.26" r="0.42"/><circle cx="84" cy="11.26" r="0.42"/><circle cx="88" cy="11.26" r="0.42"/><circle cx="11.5" cy="12.12" r="0.42"/><circle cx="12.5" cy="12.12" r="0.42"/><circle cx="13.5" cy="12.12" r="0.42"/><circle cx="14.5" cy="12.12" r="0.42"/><circle cx="15.5" cy="12.12" r="0.42"/><circle cx="16.5" cy="12.12" r="0.42"/><circle cx="17.5" cy="12.12" r="0.42"/><circle cx="18.5" cy="12.12" r="0.42"/><circle cx="19.5" cy="12.12" r="0.42"/><circle cx="20.5" cy="12.12" r="0.42"/><circle cx="21.5" cy="12.12" r="0.42"/><circle cx="22.5" cy="12.12" r="0.42"/><circle cx="23.5" cy="12.12" r="0.42"/><circle cx="24.5" cy="12.12" r="0.42"/><circle cx="25.5" cy="12.12" r="0.42"/><circle cx="26.5" cy="12.12" r="0.42"/><circle cx="46.5" cy="12.12" r="0.42"/><circle cx="47.5" cy="12.12" r="0.42"/><circle cx="48.5" cy="12.12" r="0.42"/><circle cx="49.5" cy="12.12" r="0.42"/><circle cx="50.5" cy="12.12" r="0.42"/><circle cx="51.5" cy="12.12" r="0.42"/><circle cx="52.5" cy="12.12" r="0.42"/><circle cx="53.5" cy="12.12" r="0.42"/><circle cx="54.5" cy="12.12" r="0.42"/><circle cx="55.5" cy="12.12" r="0.42"/><circle cx="56.5" cy="12.12" r="0.42"/><circle cx="57.5" cy="12.12" r="0.42"/><circle cx="58.5" cy="12.12" r="0.42"/><circle cx="59.5" cy="12.12" r="0.42"/><circle cx="60.5" cy="12.12" r="0.42"/><circle cx="61.5" cy="12.12" r="0.42"/><circle cx="62.5" cy="12.12" r="0.42"/><circle cx="63.5" cy="12.12" r="0.42"/><circle cx="64.5" cy="12.12" r="0.42"/><circle cx="65.5" cy="12.12" r="0.42"/><circle cx="66.5" cy="12.12" r="0.42"/><circle cx="67.5" cy="12.12" r="0.42"/><circle cx="68.5" cy="12.12" r="0.42"/><circle cx="69.5" cy="12.12" r="0.42"/><circle cx="70.5" cy="12.12" r="0.42"/><circle cx="71.5" cy="12.12" r="0.42"/><circle cx="72.5" cy="12.12" r="0.42"/><circle cx="73.5" cy="12.12" r="0.42"/><circle cx="74.5" cy="12.12" r="0.42"/><circle cx="75.5" cy="12.12" r="0.42"/><circle cx="76.5" cy="12.12" r="0.42"/><circle cx="77.5" cy="12.12" r="0.42"/><circle cx="78.5" cy="12.12" r="0.42"/><circle cx="79.5" cy="12.12" r="0.42"/><circle cx="80.5" cy="12.12" r="0.42"/><circle cx="81.5" cy="12.12" r="0.42"/><circle cx="82.5" cy="12.12" r="0.42"/><circle cx="83.5" cy="12.12" r="0.42"/><circle cx="84.5" cy="12.12" r="0.42"/><circle cx="12" cy="12.99" r="0.42"/><circle cx="13" cy="12.99" r="0.42"/><circle cx="14" cy="12.99" r="0.42"/><circle cx="15" cy="12.99" r="0.42"/><circle cx="16" cy="12.99" r="0.42"/><circle cx="17" cy="12.99" r="0.42"/><circle cx="18" cy="12.99" r="0.42"/><circle cx="19" cy="12.99" r="0.42"/><circle cx="20" cy="12.99" r="0.42"/><circle cx="21" cy="12.99" r="0.42"/><circle cx="22" cy="12.99" r="0.42"/><circle cx="23" cy="12.99" r="0.42"/><circle cx="24" cy="12.99" r="0.42"/><circle cx="25" cy="12.99" r="0.42"/><circle cx="26" cy="12.99" r="0.42"/><circle cx="27" cy="12.99" r="0.42"/><circle cx="30" cy="12.99" r="0.42"/><circle cx="31" cy="12.99" r="0.42"/><circle cx="45" cy="12.99" r="0.42"/><circle cx="46" cy="12.99" r="0.42"/><circle cx="47" cy="12.99" r="0.42"/><circle cx="48" cy="12.99" r="0.42"/><circle cx="49" cy="12.99" r="0.42"/><circle cx="50" cy="12.99" r="0.42"/><circle cx="51" cy="12.99" r="0.42"/><circle cx="52" cy="12.99" r="0.42"/><circle cx="53" cy="12.99" r="0.42"/><circle cx="54" cy="12.99" r="0.42"/><circle cx="55" cy="12.99" r="0.42"/><circle cx="56" cy="12.99" r="0.42"/><circle cx="57" cy="12.99" r="0.42"/><circle cx="58" cy="12.99" r="0.42"/><circle cx="59" cy="12.99" r="0.42"/><circle cx="60" cy="12.99" r="0.42"/><circle cx="61" cy="12.99" r="0.42"/><circle cx="62" cy="12.99" r="0.42"/><circle cx="63" cy="12.99" r="0.42"/><circle cx="64" cy="12.99" r="0.42"/><circle cx="65" cy="12.99" r="0.42"/><circle cx="66" cy="12.99" r="0.42"/><circle cx="67" cy="12.99" r="0.42"/><circle cx="68" cy="12.99" r="0.42"/><circle cx="69" cy="12.99" r="0.42"/><circle cx="70" cy="12.99" r="0.42"/><circle cx="71" cy="12.99" r="0.42"/><circle cx="72" cy="12.99" r="0.42"/><circle cx="73" cy="12.99" r="0.42"/><circle cx="74" cy="12.99" r="0.42"/><circle cx="75" cy="12.99" r="0.42"/><circle cx="76" cy="12.99" r="0.42"/><circle cx="77" cy="12.99" r="0.42"/><circle cx="78" cy="12.99" r="0.42"/><circle cx="79" cy="12.99" r="0.42"/><circle cx="80" cy="12.99" r="0.42"/><circle cx="81" cy="12.99" r="0.42"/><circle cx="82" cy="12.99" r="0.42"/><circle cx="83" cy="12.99" r="0.42"/><circle cx="84" cy="12.99" r="0.42"/><circle cx="12.5" cy="13.86" r="0.42"/><circle cx="13.5" cy="13.86" r="0.42"/><circle cx="14.5" cy="13.86" r="0.42"/><circle cx="15.5" cy="13.86" r="0.42"/><circle cx="16.5" cy="13.86" r="0.42"/><circle cx="17.5" cy="13.86" r="0.42"/><circle cx="18.5" cy="13.86" r="0.42"/><circle cx="19.5" cy="13.86" r="0.42"/><circle cx="20.5" cy="13.86" r="0.42"/><circle cx="21.5" cy="13.86" r="0.42"/><circle cx="22.5" cy="13.86" r="0.42"/><circle cx="23.5" cy="13.86" r="0.42"/><circle cx="24.5" cy="13.86" r="0.42"/><circle cx="25.5" cy="13.86" r="0.42"/><circle cx="26.5" cy="13.86" r="0.42"/><circle cx="27.5" cy="13.86" r="0.42"/><circle cx="28.5" cy="13.86" r="0.42"/><circle cx="45.5" cy="13.86" r="0.42"/><circle cx="46.5" cy="13.86" r="0.42"/><circle cx="47.5" cy="13.86" r="0.42"/><circle cx="48.5" cy="13.86" r="0.42"/><circle cx="49.5" cy="13.86" r="0.42"/><circle cx="50.5" cy="13.86" r="0.42"/><circle cx="51.5" cy="13.86" r="0.42"/><circle cx="52.5" cy="13.86" r="0.42"/><circle cx="53.5" cy="13.86" r="0.42"/><circle cx="54.5" cy="13.86" r="0.42"/><circle cx="56.5" cy="13.86" r="0.42"/><circle cx="57.5" cy="13.86" r="0.42"/><circle cx="60.5" cy="13.86" r="0.42"/><circle cx="61.5" cy="13.86" r="0.42"/><circle cx="62.5" cy="13.86" r="0.42"/><circle cx="63.5" cy="13.86" r="0.42"/><circle cx="64.5" cy="13.86" r="0.42"/><circle cx="65.5" cy="13.86" r="0.42"/><circle cx="66.5" cy="13.86" r="0.42"/><circle cx="67.5" cy="13.86" r="0.42"/><circle cx="68.5" cy="13.86" r="0.42"/><circle cx="69.5" cy="13.86" r="0.42"/><circle cx="70.5" cy="13.86" r="0.42"/><circle cx="71.5" cy="13.86" r="0.42"/><circle cx="72.5" cy="13.86" r="0.42"/><circle cx="73.5" cy="13.86" r="0.42"/><circle cx="74.5" cy="13.86" r="0.42"/><circle cx="75.5" cy="13.86" r="0.42"/><circle cx="76.5" cy="13.86" r="0.42"/><circle cx="77.5" cy="13.86" r="0.42"/><circle cx="78.5" cy="13.86" r="0.42"/><circle cx="79.5" cy="13.86" r="0.42"/><circle cx="80.5" cy="13.86" r="0.42"/><circle cx="81.5" cy="13.86" r="0.42"/><circle cx="82.5" cy="13.86" r="0.42"/><circle cx="12" cy="14.72" r="0.42"/><circle cx="13" cy="14.72" r="0.42"/><circle cx="14" cy="14.72" r="0.42"/><circle cx="15" cy="14.72" r="0.42"/><circle cx="16" cy="14.72" r="0.42"/><circle cx="17" cy="14.72" r="0.42"/><circle cx="18" cy="14.72" r="0.42"/><circle cx="19" cy="14.72" r="0.42"/><circle cx="20" cy="14.72" r="0.42"/><circle cx="21" cy="14.72" r="0.42"/><circle cx="22" cy="14.72" r="0.42"/><circle cx="23" cy="14.72" r="0.42"/><circle cx="24" cy="14.72" r="0.42"/><circle cx="25" cy="14.72" r="0.42"/><circle cx="26" cy="14.72" r="0.42"/><circle cx="44" cy="14.72" r="0.42"/><circle cx="45" cy="14.72" r="0.42"/><circle cx="46" cy="14.72" r="0.42"/><circle cx="49" cy="14.72" r="0.42"/><circle cx="51" cy="14.72" r="0.42"/><circle cx="52" cy="14.72" r="0.42"/><circle cx="53" cy="14.72" r="0.42"/><circle cx="57" cy="14.72" r="0.42"/><circle cx="58" cy="14.72" r="0.42"/><circle cx="60" cy="14.72" r="0.42"/><circle cx="61" cy="14.72" r="0.42"/><circle cx="62" cy="14.72" r="0.42"/><circle cx="63" cy="14.72" r="0.42"/><circle cx="64" cy="14.72" r="0.42"/><circle cx="65" cy="14.72" r="0.42"/><circle cx="66" cy="14.72" r="0.42"/><circle cx="67" cy="14.72" r="0.42"/><circle cx="68" cy="14.72" r="0.42"/><circle cx="69" cy="14.72" r="0.42"/><circle cx="70" cy="14.72" r="0.42"/><circle cx="71" cy="14.72" r="0.42"/><circle cx="72" cy="14.72" r="0.42"/><circle cx="73" cy="14.72" r="0.42"/><circle cx="74" cy="14.72" r="0.42"/><circle cx="75" cy="14.72" r="0.42"/><circle cx="76" cy="14.72" r="0.42"/><circle cx="77" cy="14.72" r="0.42"/><circle cx="78" cy="14.72" r="0.42"/><circle cx="79" cy="14.72" r="0.42"/><circle cx="80" cy="14.72" r="0.42"/><circle cx="81" cy="14.72" r="0.42"/><circle cx="84" cy="14.72" r="0.42"/><circle cx="12.5" cy="15.59" r="0.42"/><circle cx="13.5" cy="15.59" r="0.42"/><circle cx="14.5" cy="15.59" r="0.42"/><circle cx="15.5" cy="15.59" r="0.42"/><circle cx="16.5" cy="15.59" r="0.42"/><circle cx="17.5" cy="15.59" r="0.42"/><circle cx="18.5" cy="15.59" r="0.42"/><circle cx="19.5" cy="15.59" r="0.42"/><circle cx="20.5" cy="15.59" r="0.42"/><circle cx="21.5" cy="15.59" r="0.42"/><circle cx="22.5" cy="15.59" r="0.42"/><circle cx="23.5" cy="15.59" r="0.42"/><circle cx="24.5" cy="15.59" r="0.42"/><circle cx="25.5" cy="15.59" r="0.42"/><circle cx="43.5" cy="15.59" r="0.42"/><circle cx="44.5" cy="15.59" r="0.42"/><circle cx="45.5" cy="15.59" r="0.42"/><circle cx="49.5" cy="15.59" r="0.42"/><circle cx="51.5" cy="15.59" r="0.42"/><circle cx="52.5" cy="15.59" r="0.42"/><circle cx="53.5" cy="15.59" r="0.42"/><circle cx="54.5" cy="15.59" r="0.42"/><circle cx="55.5" cy="15.59" r="0.42"/><circle cx="56.5" cy="15.59" r="0.42"/><circle cx="57.5" cy="15.59" r="0.42"/><circle cx="58.5" cy="15.59" r="0.42"/><circle cx="60.5" cy="15.59" r="0.42"/><circle cx="61.5" cy="15.59" r="0.42"/><circle cx="62.5" cy="15.59" r="0.42"/><circle cx="63.5" cy="15.59" r="0.42"/><circle cx="64.5" cy="15.59" r="0.42"/><circle cx="65.5" cy="15.59" r="0.42"/><circle cx="66.5" cy="15.59" r="0.42"/><circle cx="67.5" cy="15.59" r="0.42"/><circle cx="68.5" cy="15.59" r="0.42"/><circle cx="69.5" cy="15.59" r="0.42"/><circle cx="70.5" cy="15.59" r="0.42"/><circle cx="71.5" cy="15.59" r="0.42"/><circle cx="72.5" cy="15.59" r="0.42"/><circle cx="73.5" cy="15.59" r="0.42"/><circle cx="74.5" cy="15.59" r="0.42"/><circle cx="75.5" cy="15.59" r="0.42"/><circle cx="76.5" cy="15.59" r="0.42"/><circle cx="77.5" cy="15.59" r="0.42"/><circle cx="78.5" cy="15.59" r="0.42"/><circle cx="79.5" cy="15.59" r="0.42"/><circle cx="80.5" cy="15.59" r="0.42"/><circle cx="83.5" cy="15.59" r="0.42"/><circle cx="13" cy="16.45" r="0.42"/><circle cx="14" cy="16.45" r="0.42"/><circle cx="15" cy="16.45" r="0.42"/><circle cx="16" cy="16.45" r="0.42"/><circle cx="17" cy="16.45" r="0.42"/><circle cx="18" cy="16.45" r="0.42"/><circle cx="19" cy="16.45" r="0.42"/><circle cx="20" cy="16.45" r="0.42"/><circle cx="21" cy="16.45" r="0.42"/><circle cx="22" cy="16.45" r="0.42"/><circle cx="23" cy="16.45" r="0.42"/><circle cx="24" cy="16.45" r="0.42"/><circle cx="25" cy="16.45" r="0.42"/><circle cx="43" cy="16.45" r="0.42"/><circle cx="44" cy="16.45" r="0.42"/><circle cx="45" cy="16.45" r="0.42"/><circle cx="53" cy="16.45" r="0.42"/><circle cx="54" cy="16.45" r="0.42"/><circle cx="55" cy="16.45" r="0.42"/><circle cx="56" cy="16.45" r="0.42"/><circle cx="57" cy="16.45" r="0.42"/><circle cx="58" cy="16.45" r="0.42"/><circle cx="61" cy="16.45" r="0.42"/><circle cx="62" cy="16.45" r="0.42"/><circle cx="63" cy="16.45" r="0.42"/><circle cx="64" cy="16.45" r="0.42"/><circle cx="65" cy="16.45" r="0.42"/><circle cx="66" cy="16.45" r="0.42"/><circle cx="67" cy="16.45" r="0.42"/><circle cx="68" cy="16.45" r="0.42"/><circle cx="69" cy="16.45" r="0.42"/><circle cx="70" cy="16.45" r="0.42"/><circle cx="71" cy="16.45" r="0.42"/><circle cx="72" cy="16.45" r="0.42"/><circle cx="73" cy="16.45" r="0.42"/><circle cx="74" cy="16.45" r="0.42"/><circle cx="75" cy="16.45" r="0.42"/><circle cx="76" cy="16.45" r="0.42"/><circle cx="77" cy="16.45" r="0.42"/><circle cx="80" cy="16.45" r="0.42"/><circle cx="13.5" cy="17.32" r="0.42"/><circle cx="14.5" cy="17.32" r="0.42"/><circle cx="15.5" cy="17.32" r="0.42"/><circle cx="16.5" cy="17.32" r="0.42"/><circle cx="17.5" cy="17.32" r="0.42"/><circle cx="18.5" cy="17.32" r="0.42"/><circle cx="19.5" cy="17.32" r="0.42"/><circle cx="20.5" cy="17.32" r="0.42"/><circle cx="21.5" cy="17.32" r="0.42"/><circle cx="22.5" cy="17.32" r="0.42"/><circle cx="23.5" cy="17.32" r="0.42"/><circle cx="24.5" cy="17.32" r="0.42"/><circle cx="45.5" cy="17.32" r="0.42"/><circle cx="46.5" cy="17.32" r="0.42"/><circle cx="47.5" cy="17.32" r="0.42"/><circle cx="55.5" cy="17.32" r="0.42"/><circle cx="56.5" cy="17.32" r="0.42"/><circle cx="57.5" cy="17.32" r="0.42"/><circle cx="58.5" cy="17.32" r="0.42"/><circle cx="59.5" cy="17.32" r="0.42"/><circle cx="60.5" cy="17.32" r="0.42"/><circle cx="61.5" cy="17.32" r="0.42"/><circle cx="62.5" cy="17.32" r="0.42"/><circle cx="63.5" cy="17.32" r="0.42"/><circle cx="64.5" cy="17.32" r="0.42"/><circle cx="65.5" cy="17.32" r="0.42"/><circle cx="66.5" cy="17.32" r="0.42"/><circle cx="67.5" cy="17.32" r="0.42"/><circle cx="68.5" cy="17.32" r="0.42"/><circle cx="69.5" cy="17.32" r="0.42"/><circle cx="70.5" cy="17.32" r="0.42"/><circle cx="71.5" cy="17.32" r="0.42"/><circle cx="72.5" cy="17.32" r="0.42"/><circle cx="73.5" cy="17.32" r="0.42"/><circle cx="74.5" cy="17.32" r="0.42"/><circle cx="75.5" cy="17.32" r="0.42"/><circle cx="76.5" cy="17.32" r="0.42"/><circle cx="77.5" cy="17.32" r="0.42"/><circle cx="80.5" cy="17.32" r="0.42"/><circle cx="82.5" cy="17.32" r="0.42"/><circle cx="83.5" cy="17.32" r="0.42"/><circle cx="14" cy="18.19" r="0.42"/><circle cx="15" cy="18.19" r="0.42"/><circle cx="16" cy="18.19" r="0.42"/><circle cx="17" cy="18.19" r="0.42"/><circle cx="18" cy="18.19" r="0.42"/><circle cx="19" cy="18.19" r="0.42"/><circle cx="20" cy="18.19" r="0.42"/><circle cx="21" cy="18.19" r="0.42"/><circle cx="22" cy="18.19" r="0.42"/><circle cx="23" cy="18.19" r="0.42"/><circle cx="24" cy="18.19" r="0.42"/><circle cx="44" cy="18.19" r="0.42"/><circle cx="45" cy="18.19" r="0.42"/><circle cx="46" cy="18.19" r="0.42"/><circle cx="47" cy="18.19" r="0.42"/><circle cx="48" cy="18.19" r="0.42"/><circle cx="56" cy="18.19" r="0.42"/><circle cx="57" cy="18.19" r="0.42"/><circle cx="58" cy="18.19" r="0.42"/><circle cx="59" cy="18.19" r="0.42"/><circle cx="60" cy="18.19" r="0.42"/><circle cx="61" cy="18.19" r="0.42"/><circle cx="62" cy="18.19" r="0.42"/><circle cx="63" cy="18.19" r="0.42"/><circle cx="64" cy="18.19" r="0.42"/><circle cx="65" cy="18.19" r="0.42"/><circle cx="66" cy="18.19" r="0.42"/><circle cx="67" cy="18.19" r="0.42"/><circle cx="68" cy="18.19" r="0.42"/><circle cx="69" cy="18.19" r="0.42"/><circle cx="70" cy="18.19" r="0.42"/><circle cx="71" cy="18.19" r="0.42"/><circle cx="72" cy="18.19" r="0.42"/><circle cx="73" cy="18.19" r="0.42"/><circle cx="74" cy="18.19" r="0.42"/><circle cx="75" cy="18.19" r="0.42"/><circle cx="76" cy="18.19" r="0.42"/><circle cx="77" cy="18.19" r="0.42"/><circle cx="78" cy="18.19" r="0.42"/><circle cx="81" cy="18.19" r="0.42"/><circle cx="15.5" cy="19.05" r="0.42"/><circle cx="16.5" cy="19.05" r="0.42"/><circle cx="17.5" cy="19.05" r="0.42"/><circle cx="18.5" cy="19.05" r="0.42"/><circle cx="19.5" cy="19.05" r="0.42"/><circle cx="20.5" cy="19.05" r="0.42"/><circle cx="21.5" cy="19.05" r="0.42"/><circle cx="22.5" cy="19.05" r="0.42"/><circle cx="43.5" cy="19.05" r="0.42"/><circle cx="44.5" cy="19.05" r="0.42"/><circle cx="45.5" cy="19.05" r="0.42"/><circle cx="46.5" cy="19.05" r="0.42"/><circle cx="47.5" cy="19.05" r="0.42"/><circle cx="48.5" cy="19.05" r="0.42"/><circle cx="49.5" cy="19.05" r="0.42"/><circle cx="50.5" cy="19.05" r="0.42"/><circle cx="51.5" cy="19.05" r="0.42"/><circle cx="52.5" cy="19.05" r="0.42"/><circle cx="53.5" cy="19.05" r="0.42"/><circle cx="54.5" cy="19.05" r="0.42"/><circle cx="55.5" cy="19.05" r="0.42"/><circle cx="56.5" cy="19.05" r="0.42"/><circle cx="57.5" cy="19.05" r="0.42"/><circle cx="58.5" cy="19.05" r="0.42"/><circle cx="59.5" cy="19.05" r="0.42"/><circle cx="60.5" cy="19.05" r="0.42"/><circle cx="61.5" cy="19.05" r="0.42"/><circle cx="62.5" cy="19.05" r="0.42"/><circle cx="63.5" cy="19.05" r="0.42"/><circle cx="64.5" cy="19.05" r="0.42"/><circle cx="65.5" cy="19.05" r="0.42"/><circle cx="66.5" cy="19.05" r="0.42"/><circle cx="67.5" cy="19.05" r="0.42"/><circle cx="68.5" cy="19.05" r="0.42"/><circle cx="69.5" cy="19.05" r="0.42"/><circle cx="70.5" cy="19.05" r="0.42"/><circle cx="71.5" cy="19.05" r="0.42"/><circle cx="72.5" cy="19.05" r="0.42"/><circle cx="73.5" cy="19.05" r="0.42"/><circle cx="74.5" cy="19.05" r="0.42"/><circle cx="75.5" cy="19.05" r="0.42"/><circle cx="76.5" cy="19.05" r="0.42"/><circle cx="77.5" cy="19.05" r="0.42"/><circle cx="15" cy="19.92" r="0.42"/><circle cx="16" cy="19.92" r="0.42"/><circle cx="17" cy="19.92" r="0.42"/><circle cx="18" cy="19.92" r="0.42"/><circle cx="19" cy="19.92" r="0.42"/><circle cx="42" cy="19.92" r="0.42"/><circle cx="43" cy="19.92" r="0.42"/><circle cx="44" cy="19.92" r="0.42"/><circle cx="45" cy="19.92" r="0.42"/><circle cx="46" cy="19.92" r="0.42"/><circle cx="47" cy="19.92" r="0.42"/><circle cx="48" cy="19.92" r="0.42"/><circle cx="49" cy="19.92" r="0.42"/><circle cx="50" cy="19.92" r="0.42"/><circle cx="51" cy="19.92" r="0.42"/><circle cx="52" cy="19.92" r="0.42"/><circle cx="53" cy="19.92" r="0.42"/><circle cx="54" cy="19.92" r="0.42"/><circle cx="56" cy="19.92" r="0.42"/><circle cx="57" cy="19.92" r="0.42"/><circle cx="58" cy="19.92" r="0.42"/><circle cx="60" cy="19.92" r="0.42"/><circle cx="61" cy="19.92" r="0.42"/><circle cx="62" cy="19.92" r="0.42"/><circle cx="63" cy="19.92" r="0.42"/><circle cx="64" cy="19.92" r="0.42"/><circle cx="65" cy="19.92" r="0.42"/><circle cx="66" cy="19.92" r="0.42"/><circle cx="67" cy="19.92" r="0.42"/><circle cx="68" cy="19.92" r="0.42"/><circle cx="69" cy="19.92" r="0.42"/><circle cx="70" cy="19.92" r="0.42"/><circle cx="71" cy="19.92" r="0.42"/><circle cx="72" cy="19.92" r="0.42"/><circle cx="73" cy="19.92" r="0.42"/><circle cx="74" cy="19.92" r="0.42"/><circle cx="75" cy="19.92" r="0.42"/><circle cx="76" cy="19.92" r="0.42"/><circle cx="77" cy="19.92" r="0.42"/><circle cx="78" cy="19.92" r="0.42"/><circle cx="15.5" cy="20.78" r="0.42"/><circle cx="16.5" cy="20.78" r="0.42"/><circle cx="17.5" cy="20.78" r="0.42"/><circle cx="18.5" cy="20.78" r="0.42"/><circle cx="41.5" cy="20.78" r="0.42"/><circle cx="42.5" cy="20.78" r="0.42"/><circle cx="43.5" cy="20.78" r="0.42"/><circle cx="44.5" cy="20.78" r="0.42"/><circle cx="45.5" cy="20.78" r="0.42"/><circle cx="46.5" cy="20.78" r="0.42"/><circle cx="47.5" cy="20.78" r="0.42"/><circle cx="48.5" cy="20.78" r="0.42"/><circle cx="49.5" cy="20.78" r="0.42"/><circle cx="50.5" cy="20.78" r="0.42"/><circle cx="51.5" cy="20.78" r="0.42"/><circle cx="52.5" cy="20.78" r="0.42"/><circle cx="53.5" cy="20.78" r="0.42"/><circle cx="54.5" cy="20.78" r="0.42"/><circle cx="56.5" cy="20.78" r="0.42"/><circle cx="57.5" cy="20.78" r="0.42"/><circle cx="58.5" cy="20.78" r="0.42"/><circle cx="60.5" cy="20.78" r="0.42"/><circle cx="64.5" cy="20.78" r="0.42"/><circle cx="65.5" cy="20.78" r="0.42"/><circle cx="66.5" cy="20.78" r="0.42"/><circle cx="67.5" cy="20.78" r="0.42"/><circle cx="68.5" cy="20.78" r="0.42"/><circle cx="69.5" cy="20.78" r="0.42"/><circle cx="70.5" cy="20.78" r="0.42"/><circle cx="71.5" cy="20.78" r="0.42"/><circle cx="72.5" cy="20.78" r="0.42"/><circle cx="73.5" cy="20.78" r="0.42"/><circle cx="74.5" cy="20.78" r="0.42"/><circle cx="75.5" cy="20.78" r="0.42"/><circle cx="76.5" cy="20.78" r="0.42"/><circle cx="77.5" cy="20.78" r="0.42"/><circle cx="78.5" cy="20.78" r="0.42"/><circle cx="17" cy="21.65" r="0.42"/><circle cx="18" cy="21.65" r="0.42"/><circle cx="19" cy="21.65" r="0.42"/><circle cx="24" cy="21.65" r="0.42"/><circle cx="41" cy="21.65" r="0.42"/><circle cx="42" cy="21.65" r="0.42"/><circle cx="43" cy="21.65" r="0.42"/><circle cx="44" cy="21.65" r="0.42"/><circle cx="45" cy="21.65" r="0.42"/><circle cx="46" cy="21.65" r="0.42"/><circle cx="47" cy="21.65" r="0.42"/><circle cx="48" cy="21.65" r="0.42"/><circle cx="49" cy="21.65" r="0.42"/><circle cx="50" cy="21.65" r="0.42"/><circle cx="51" cy="21.65" r="0.42"/><circle cx="52" cy="21.65" r="0.42"/><circle cx="53" cy="21.65" r="0.42"/><circle cx="54" cy="21.65" r="0.42"/><circle cx="55" cy="21.65" r="0.42"/><circle cx="57" cy="21.65" r="0.42"/><circle cx="58" cy="21.65" r="0.42"/><circle cx="59" cy="21.65" r="0.42"/><circle cx="60" cy="21.65" r="0.42"/><circle cx="61" cy="21.65" r="0.42"/><circle cx="65" cy="21.65" r="0.42"/><circle cx="66" cy="21.65" r="0.42"/><circle cx="67" cy="21.65" r="0.42"/><circle cx="68" cy="21.65" r="0.42"/><circle cx="69" cy="21.65" r="0.42"/><circle cx="71" cy="21.65" r="0.42"/><circle cx="72" cy="21.65" r="0.42"/><circle cx="73" cy="21.65" r="0.42"/><circle cx="74" cy="21.65" r="0.42"/><circle cx="75" cy="21.65" r="0.42"/><circle cx="17.5" cy="22.52" r="0.42"/><circle cx="18.5" cy="22.52" r="0.42"/><circle cx="19.5" cy="22.52" r="0.42"/><circle cx="21.5" cy="22.52" r="0.42"/><circle cx="26.5" cy="22.52" r="0.42"/><circle cx="41.5" cy="22.52" r="0.42"/><circle cx="42.5" cy="22.52" r="0.42"/><circle cx="43.5" cy="22.52" r="0.42"/><circle cx="44.5" cy="22.52" r="0.42"/><circle cx="45.5" cy="22.52" r="0.42"/><circle cx="46.5" cy="22.52" r="0.42"/><circle cx="47.5" cy="22.52" r="0.42"/><circle cx="48.5" cy="22.52" r="0.42"/><circle cx="49.5" cy="22.52" r="0.42"/><circle cx="50.5" cy="22.52" r="0.42"/><circle cx="51.5" cy="22.52" r="0.42"/><circle cx="52.5" cy="22.52" r="0.42"/><circle cx="53.5" cy="22.52" r="0.42"/><circle cx="54.5" cy="22.52" r="0.42"/><circle cx="55.5" cy="22.52" r="0.42"/><circle cx="57.5" cy="22.52" r="0.42"/><circle cx="58.5" cy="22.52" r="0.42"/><circle cx="59.5" cy="22.52" r="0.42"/><circle cx="60.5" cy="22.52" r="0.42"/><circle cx="65.5" cy="22.52" r="0.42"/><circle cx="66.5" cy="22.52" r="0.42"/><circle cx="67.5" cy="22.52" r="0.42"/><circle cx="71.5" cy="22.52" r="0.42"/><circle cx="72.5" cy="22.52" r="0.42"/><circle cx="73.5" cy="22.52" r="0.42"/><circle cx="21" cy="23.38" r="0.42"/><circle cx="22" cy="23.38" r="0.42"/><circle cx="41" cy="23.38" r="0.42"/><circle cx="42" cy="23.38" r="0.42"/><circle cx="43" cy="23.38" r="0.42"/><circle cx="44" cy="23.38" r="0.42"/><circle cx="45" cy="23.38" r="0.42"/><circle cx="46" cy="23.38" r="0.42"/><circle cx="47" cy="23.38" r="0.42"/><circle cx="48" cy="23.38" r="0.42"/><circle cx="49" cy="23.38" r="0.42"/><circle cx="50" cy="23.38" r="0.42"/><circle cx="51" cy="23.38" r="0.42"/><circle cx="52" cy="23.38" r="0.42"/><circle cx="53" cy="23.38" r="0.42"/><circle cx="54" cy="23.38" r="0.42"/><circle cx="55" cy="23.38" r="0.42"/><circle cx="56" cy="23.38" r="0.42"/><circle cx="58" cy="23.38" r="0.42"/><circle cx="59" cy="23.38" r="0.42"/><circle cx="66" cy="23.38" r="0.42"/><circle cx="67" cy="23.38" r="0.42"/><circle cx="72" cy="23.38" r="0.42"/><circle cx="73" cy="23.38" r="0.42"/><circle cx="74" cy="23.38" r="0.42"/><circle cx="78" cy="23.38" r="0.42"/><circle cx="22.5" cy="24.25" r="0.42"/><circle cx="41.5" cy="24.25" r="0.42"/><circle cx="42.5" cy="24.25" r="0.42"/><circle cx="43.5" cy="24.25" r="0.42"/><circle cx="44.5" cy="24.25" r="0.42"/><circle cx="45.5" cy="24.25" r="0.42"/><circle cx="46.5" cy="24.25" r="0.42"/><circle cx="47.5" cy="24.25" r="0.42"/><circle cx="48.5" cy="24.25" r="0.42"/><circle cx="49.5" cy="24.25" r="0.42"/><circle cx="50.5" cy="24.25" r="0.42"/><circle cx="51.5" cy="24.25" r="0.42"/><circle cx="52.5" cy="24.25" r="0.42"/><circle cx="53.5" cy="24.25" r="0.42"/><circle cx="54.5" cy="24.25" r="0.42"/><circle cx="55.5" cy="24.25" r="0.42"/><circle cx="56.5" cy="24.25" r="0.42"/><circle cx="66.5" cy="24.25" r="0.42"/><circle cx="72.5" cy="24.25" r="0.42"/><circle cx="73.5" cy="24.25" r="0.42"/><circle cx="74.5" cy="24.25" r="0.42"/><circle cx="23" cy="25.11" r="0.42"/><circle cx="24" cy="25.11" r="0.42"/><circle cx="26" cy="25.11" r="0.42"/><circle cx="27" cy="25.11" r="0.42"/><circle cx="28" cy="25.11" r="0.42"/><circle cx="42" cy="25.11" r="0.42"/><circle cx="43" cy="25.11" r="0.42"/><circle cx="44" cy="25.11" r="0.42"/><circle cx="45" cy="25.11" r="0.42"/><circle cx="46" cy="25.11" r="0.42"/><circle cx="47" cy="25.11" r="0.42"/><circle cx="48" cy="25.11" r="0.42"/><circle cx="49" cy="25.11" r="0.42"/><circle cx="50" cy="25.11" r="0.42"/><circle cx="51" cy="25.11" r="0.42"/><circle cx="52" cy="25.11" r="0.42"/><circle cx="53" cy="25.11" r="0.42"/><circle cx="54" cy="25.11" r="0.42"/><circle cx="55" cy="25.11" r="0.42"/><circle cx="56" cy="25.11" r="0.42"/><circle cx="57" cy="25.11" r="0.42"/><circle cx="58" cy="25.11" r="0.42"/><circle cx="59" cy="25.11" r="0.42"/><circle cx="74" cy="25.11" r="0.42"/><circle cx="25.5" cy="25.98" r="0.42"/><circle cx="26.5" cy="25.98" r="0.42"/><circle cx="27.5" cy="25.98" r="0.42"/><circle cx="28.5" cy="25.98" r="0.42"/><circle cx="29.5" cy="25.98" r="0.42"/><circle cx="43.5" cy="25.98" r="0.42"/><circle cx="44.5" cy="25.98" r="0.42"/><circle cx="45.5" cy="25.98" r="0.42"/><circle cx="46.5" cy="25.98" r="0.42"/><circle cx="47.5" cy="25.98" r="0.42"/><circle cx="48.5" cy="25.98" r="0.42"/><circle cx="49.5" cy="25.98" r="0.42"/><circle cx="50.5" cy="25.98" r="0.42"/><circle cx="51.5" cy="25.98" r="0.42"/><circle cx="52.5" cy="25.98" r="0.42"/><circle cx="53.5" cy="25.98" r="0.42"/><circle cx="54.5" cy="25.98" r="0.42"/><circle cx="55.5" cy="25.98" r="0.42"/><circle cx="56.5" cy="25.98" r="0.42"/><circle cx="57.5" cy="25.98" r="0.42"/><circle cx="58.5" cy="25.98" r="0.42"/><circle cx="67.5" cy="25.98" r="0.42"/><circle cx="79.5" cy="25.98" r="0.42"/><circle cx="25" cy="26.85" r="0.42"/><circle cx="26" cy="26.85" r="0.42"/><circle cx="27" cy="26.85" r="0.42"/><circle cx="28" cy="26.85" r="0.42"/><circle cx="29" cy="26.85" r="0.42"/><circle cx="30" cy="26.85" r="0.42"/><circle cx="31" cy="26.85" r="0.42"/><circle cx="49" cy="26.85" r="0.42"/><circle cx="50" cy="26.85" r="0.42"/><circle cx="51" cy="26.85" r="0.42"/><circle cx="52" cy="26.85" r="0.42"/><circle cx="53" cy="26.85" r="0.42"/><circle cx="54" cy="26.85" r="0.42"/><circle cx="55" cy="26.85" r="0.42"/><circle cx="56" cy="26.85" r="0.42"/><circle cx="57" cy="26.85" r="0.42"/><circle cx="58" cy="26.85" r="0.42"/><circle cx="72" cy="26.85" r="0.42"/><circle cx="73" cy="26.85" r="0.42"/><circle cx="77" cy="26.85" r="0.42"/><circle cx="24.5" cy="27.71" r="0.42"/><circle cx="25.5" cy="27.71" r="0.42"/><circle cx="26.5" cy="27.71" r="0.42"/><circle cx="27.5" cy="27.71" r="0.42"/><circle cx="28.5" cy="27.71" r="0.42"/><circle cx="29.5" cy="27.71" r="0.42"/><circle cx="30.5" cy="27.71" r="0.42"/><circle cx="31.5" cy="27.71" r="0.42"/><circle cx="48.5" cy="27.71" r="0.42"/><circle cx="49.5" cy="27.71" r="0.42"/><circle cx="50.5" cy="27.71" r="0.42"/><circle cx="51.5" cy="27.71" r="0.42"/><circle cx="52.5" cy="27.71" r="0.42"/><circle cx="53.5" cy="27.71" r="0.42"/><circle cx="54.5" cy="27.71" r="0.42"/><circle cx="55.5" cy="27.71" r="0.42"/><circle cx="56.5" cy="27.71" r="0.42"/><circle cx="72.5" cy="27.71" r="0.42"/><circle cx="73.5" cy="27.71" r="0.42"/><circle cx="75.5" cy="27.71" r="0.42"/><circle cx="76.5" cy="27.71" r="0.42"/><circle cx="24" cy="28.58" r="0.42"/><circle cx="25" cy="28.58" r="0.42"/><circle cx="26" cy="28.58" r="0.42"/><circle cx="27" cy="28.58" r="0.42"/><circle cx="28" cy="28.58" r="0.42"/><circle cx="29" cy="28.58" r="0.42"/><circle cx="30" cy="28.58" r="0.42"/><circle cx="31" cy="28.58" r="0.42"/><circle cx="32" cy="28.58" r="0.42"/><circle cx="33" cy="28.58" r="0.42"/><circle cx="34" cy="28.58" r="0.42"/><circle cx="49" cy="28.58" r="0.42"/><circle cx="50" cy="28.58" r="0.42"/><circle cx="51" cy="28.58" r="0.42"/><circle cx="52" cy="28.58" r="0.42"/><circle cx="53" cy="28.58" r="0.42"/><circle cx="54" cy="28.58" r="0.42"/><circle cx="55" cy="28.58" r="0.42"/><circle cx="56" cy="28.58" r="0.42"/><circle cx="74" cy="28.58" r="0.42"/><circle cx="77" cy="28.58" r="0.42"/><circle cx="78" cy="28.58" r="0.42"/><circle cx="82" cy="28.58" r="0.42"/><circle cx="83" cy="28.58" r="0.42"/><circle cx="84" cy="28.58" r="0.42"/><circle cx="24.5" cy="29.44" r="0.42"/><circle cx="25.5" cy="29.44" r="0.42"/><circle cx="26.5" cy="29.44" r="0.42"/><circle cx="27.5" cy="29.44" r="0.42"/><circle cx="28.5" cy="29.44" r="0.42"/><circle cx="29.5" cy="29.44" r="0.42"/><circle cx="30.5" cy="29.44" r="0.42"/><circle cx="31.5" cy="29.44" r="0.42"/><circle cx="32.5" cy="29.44" r="0.42"/><circle cx="33.5" cy="29.44" r="0.42"/><circle cx="34.5" cy="29.44" r="0.42"/><circle cx="35.5" cy="29.44" r="0.42"/><circle cx="49.5" cy="29.44" r="0.42"/><circle cx="50.5" cy="29.44" r="0.42"/><circle cx="51.5" cy="29.44" r="0.42"/><circle cx="52.5" cy="29.44" r="0.42"/><circle cx="53.5" cy="29.44" r="0.42"/><circle cx="54.5" cy="29.44" r="0.42"/><circle cx="55.5" cy="29.44" r="0.42"/><circle cx="74.5" cy="29.44" r="0.42"/><circle cx="75.5" cy="29.44" r="0.42"/><circle cx="83.5" cy="29.44" r="0.42"/><circle cx="84.5" cy="29.44" r="0.42"/><circle cx="85.5" cy="29.44" r="0.42"/><circle cx="25" cy="30.31" r="0.42"/><circle cx="26" cy="30.31" r="0.42"/><circle cx="27" cy="30.31" r="0.42"/><circle cx="28" cy="30.31" r="0.42"/><circle cx="29" cy="30.31" r="0.42"/><circle cx="30" cy="30.31" r="0.42"/><circle cx="31" cy="30.31" r="0.42"/><circle cx="32" cy="30.31" r="0.42"/><circle cx="33" cy="30.31" r="0.42"/><circle cx="34" cy="30.31" r="0.42"/><circle cx="35" cy="30.31" r="0.42"/><circle cx="50" cy="30.31" r="0.42"/><circle cx="51" cy="30.31" r="0.42"/><circle cx="52" cy="30.31" r="0.42"/><circle cx="53" cy="30.31" r="0.42"/><circle cx="54" cy="30.31" r="0.42"/><circle cx="55" cy="30.31" r="0.42"/><circle cx="56" cy="30.31" r="0.42"/><circle cx="78" cy="30.31" r="0.42"/><circle cx="79" cy="30.31" r="0.42"/><circle cx="86" cy="30.31" r="0.42"/><circle cx="89" cy="30.31" r="0.42"/><circle cx="25.5" cy="31.18" r="0.42"/><circle cx="26.5" cy="31.18" r="0.42"/><circle cx="27.5" cy="31.18" r="0.42"/><circle cx="28.5" cy="31.18" r="0.42"/><circle cx="29.5" cy="31.18" r="0.42"/><circle cx="30.5" cy="31.18" r="0.42"/><circle cx="31.5" cy="31.18" r="0.42"/><circle cx="32.5" cy="31.18" r="0.42"/><circle cx="33.5" cy="31.18" r="0.42"/><circle cx="34.5" cy="31.18" r="0.42"/><circle cx="49.5" cy="31.18" r="0.42"/><circle cx="50.5" cy="31.18" r="0.42"/><circle cx="51.5" cy="31.18" r="0.42"/><circle cx="52.5" cy="31.18" r="0.42"/><circle cx="53.5" cy="31.18" r="0.42"/><circle cx="54.5" cy="31.18" r="0.42"/><circle cx="55.5" cy="31.18" r="0.42"/><circle cx="81.5" cy="31.18" r="0.42"/><circle cx="82.5" cy="31.18" r="0.42"/><circle cx="26" cy="32.04" r="0.42"/><circle cx="27" cy="32.04" r="0.42"/><circle cx="28" cy="32.04" r="0.42"/><circle cx="29" cy="32.04" r="0.42"/><circle cx="30" cy="32.04" r="0.42"/><circle cx="31" cy="32.04" r="0.42"/><circle cx="32" cy="32.04" r="0.42"/><circle cx="33" cy="32.04" r="0.42"/><circle cx="34" cy="32.04" r="0.42"/><circle cx="49" cy="32.04" r="0.42"/><circle cx="50" cy="32.04" r="0.42"/><circle cx="51" cy="32.04" r="0.42"/><circle cx="52" cy="32.04" r="0.42"/><circle cx="53" cy="32.04" r="0.42"/><circle cx="54" cy="32.04" r="0.42"/><circle cx="55" cy="32.04" r="0.42"/><circle cx="56" cy="32.04" r="0.42"/><circle cx="58" cy="32.04" r="0.42"/><circle cx="80" cy="32.04" r="0.42"/><circle cx="81" cy="32.04" r="0.42"/><circle cx="82" cy="32.04" r="0.42"/><circle cx="84" cy="32.04" r="0.42"/><circle cx="26.5" cy="32.91" r="0.42"/><circle cx="27.5" cy="32.91" r="0.42"/><circle cx="28.5" cy="32.91" r="0.42"/><circle cx="29.5" cy="32.91" r="0.42"/><circle cx="30.5" cy="32.91" r="0.42"/><circle cx="31.5" cy="32.91" r="0.42"/><circle cx="32.5" cy="32.91" r="0.42"/><circle cx="33.5" cy="32.91" r="0.42"/><circle cx="34.5" cy="32.91" r="0.42"/><circle cx="49.5" cy="32.91" r="0.42"/><circle cx="50.5" cy="32.91" r="0.42"/><circle cx="51.5" cy="32.91" r="0.42"/><circle cx="52.5" cy="32.91" r="0.42"/><circle cx="53.5" cy="32.91" r="0.42"/><circle cx="54.5" cy="32.91" r="0.42"/><circle cx="57.5" cy="32.91" r="0.42"/><circle cx="58.5" cy="32.91" r="0.42"/><circle cx="78.5" cy="32.91" r="0.42"/><circle cx="79.5" cy="32.91" r="0.42"/><circle cx="80.5" cy="32.91" r="0.42"/><circle cx="81.5" cy="32.91" r="0.42"/><circle cx="82.5" cy="32.91" r="0.42"/><circle cx="83.5" cy="32.91" r="0.42"/><circle cx="84.5" cy="32.91" r="0.42"/><circle cx="27" cy="33.77" r="0.42"/><circle cx="28" cy="33.77" r="0.42"/><circle cx="29" cy="33.77" r="0.42"/><circle cx="30" cy="33.77" r="0.42"/><circle cx="31" cy="33.77" r="0.42"/><circle cx="32" cy="33.77" r="0.42"/><circle cx="33" cy="33.77" r="0.42"/><circle cx="34" cy="33.77" r="0.42"/><circle cx="50" cy="33.77" r="0.42"/><circle cx="51" cy="33.77" r="0.42"/><circle cx="52" cy="33.77" r="0.42"/><circle cx="53" cy="33.77" r="0.42"/><circle cx="54" cy="33.77" r="0.42"/><circle cx="55" cy="33.77" r="0.42"/><circle cx="58" cy="33.77" r="0.42"/><circle cx="77" cy="33.77" r="0.42"/><circle cx="78" cy="33.77" r="0.42"/><circle cx="79" cy="33.77" r="0.42"/><circle cx="80" cy="33.77" r="0.42"/><circle cx="81" cy="33.77" r="0.42"/><circle cx="82" cy="33.77" r="0.42"/><circle cx="83" cy="33.77" r="0.42"/><circle cx="84" cy="33.77" r="0.42"/><circle cx="85" cy="33.77" r="0.42"/><circle cx="86" cy="33.77" r="0.42"/><circle cx="26.5" cy="34.64" r="0.42"/><circle cx="27.5" cy="34.64" r="0.42"/><circle cx="28.5" cy="34.64" r="0.42"/><circle cx="29.5" cy="34.64" r="0.42"/><circle cx="30.5" cy="34.64" r="0.42"/><circle cx="31.5" cy="34.64" r="0.42"/><circle cx="32.5" cy="34.64" r="0.42"/><circle cx="49.5" cy="34.64" r="0.42"/><circle cx="50.5" cy="34.64" r="0.42"/><circle cx="51.5" cy="34.64" r="0.42"/><circle cx="52.5" cy="34.64" r="0.42"/><circle cx="53.5" cy="34.64" r="0.42"/><circle cx="54.5" cy="34.64" r="0.42"/><circle cx="57.5" cy="34.64" r="0.42"/><circle cx="76.5" cy="34.64" r="0.42"/><circle cx="77.5" cy="34.64" r="0.42"/><circle cx="78.5" cy="34.64" r="0.42"/><circle cx="79.5" cy="34.64" r="0.42"/><circle cx="80.5" cy="34.64" r="0.42"/><circle cx="81.5" cy="34.64" r="0.42"/><circle cx="82.5" cy="34.64" r="0.42"/><circle cx="83.5" cy="34.64" r="0.42"/><circle cx="84.5" cy="34.64" r="0.42"/><circle cx="85.5" cy="34.64" r="0.42"/><circle cx="86.5" cy="34.64" r="0.42"/><circle cx="27" cy="35.51" r="0.42"/><circle cx="28" cy="35.51" r="0.42"/><circle cx="29" cy="35.51" r="0.42"/><circle cx="30" cy="35.51" r="0.42"/><circle cx="31" cy="35.51" r="0.42"/><circle cx="32" cy="35.51" r="0.42"/><circle cx="50" cy="35.51" r="0.42"/><circle cx="51" cy="35.51" r="0.42"/><circle cx="52" cy="35.51" r="0.42"/><circle cx="53" cy="35.51" r="0.42"/><circle cx="54" cy="35.51" r="0.42"/><circle cx="77" cy="35.51" r="0.42"/><circle cx="78" cy="35.51" r="0.42"/><circle cx="79" cy="35.51" r="0.42"/><circle cx="80" cy="35.51" r="0.42"/><circle cx="81" cy="35.51" r="0.42"/><circle cx="82" cy="35.51" r="0.42"/><circle cx="83" cy="35.51" r="0.42"/><circle cx="84" cy="35.51" r="0.42"/><circle cx="85" cy="35.51" r="0.42"/><circle cx="86" cy="35.51" r="0.42"/><circle cx="87" cy="35.51" r="0.42"/><circle cx="26.5" cy="36.37" r="0.42"/><circle cx="27.5" cy="36.37" r="0.42"/><circle cx="28.5" cy="36.37" r="0.42"/><circle cx="29.5" cy="36.37" r="0.42"/><circle cx="30.5" cy="36.37" r="0.42"/><circle cx="31.5" cy="36.37" r="0.42"/><circle cx="50.5" cy="36.37" r="0.42"/><circle cx="51.5" cy="36.37" r="0.42"/><circle cx="52.5" cy="36.37" r="0.42"/><circle cx="53.5" cy="36.37" r="0.42"/><circle cx="77.5" cy="36.37" r="0.42"/><circle cx="78.5" cy="36.37" r="0.42"/><circle cx="79.5" cy="36.37" r="0.42"/><circle cx="80.5" cy="36.37" r="0.42"/><circle cx="81.5" cy="36.37" r="0.42"/><circle cx="82.5" cy="36.37" r="0.42"/><circle cx="83.5" cy="36.37" r="0.42"/><circle cx="84.5" cy="36.37" r="0.42"/><circle cx="85.5" cy="36.37" r="0.42"/><circle cx="86.5" cy="36.37" r="0.42"/><circle cx="27" cy="37.24" r="0.42"/><circle cx="28" cy="37.24" r="0.42"/><circle cx="29" cy="37.24" r="0.42"/><circle cx="30" cy="37.24" r="0.42"/><circle cx="31" cy="37.24" r="0.42"/><circle cx="51" cy="37.24" r="0.42"/><circle cx="52" cy="37.24" r="0.42"/><circle cx="77" cy="37.24" r="0.42"/><circle cx="78" cy="37.24" r="0.42"/><circle cx="79" cy="37.24" r="0.42"/><circle cx="83" cy="37.24" r="0.42"/><circle cx="84" cy="37.24" r="0.42"/><circle cx="85" cy="37.24" r="0.42"/><circle cx="86" cy="37.24" r="0.42"/><circle cx="26.5" cy="38.11" r="0.42"/><circle cx="27.5" cy="38.11" r="0.42"/><circle cx="28.5" cy="38.11" r="0.42"/><circle cx="29.5" cy="38.11" r="0.42"/><circle cx="83.5" cy="38.11" r="0.42"/><circle cx="84.5" cy="38.11" r="0.42"/><circle cx="85.5" cy="38.11" r="0.42"/><circle cx="26" cy="38.97" r="0.42"/><circle cx="27" cy="38.97" r="0.42"/><circle cx="28" cy="38.97" r="0.42"/><circle cx="29" cy="38.97" r="0.42"/><circle cx="85" cy="38.97" r="0.42"/><circle cx="25.5" cy="39.84" r="0.42"/><circle cx="26.5" cy="39.84" r="0.42"/><circle cx="27.5" cy="39.84" r="0.42"/><circle cx="85.5" cy="39.84" r="0.42"/><circle cx="26" cy="40.7" r="0.42"/><circle cx="27" cy="40.7" r="0.42"/><circle cx="25.5" cy="41.57" r="0.42"/><circle cx="26.5" cy="41.57" r="0.42"/><circle cx="26" cy="42.44" r="0.42"/><circle cx="27" cy="42.44" r="0.42"/><circle cx="25.5" cy="43.3" r="0.42"/><circle cx="26.5" cy="43.3" r="0.42"/><circle cx="26" cy="44.17" r="0.42"/><circle cx="29" cy="44.17" r="0.42"/><circle cx="26.5" cy="45.03" r="0.42"/>
+        </g>
+
+        <g class="tv-marker" data-place="London" data-role="Headquarters" data-cx="45" data-cy="11.26">
+          <circle class="tv-marker__ping" cx="45" cy="11.26" r="0.7"></circle>
+          <circle class="tv-marker__core" cx="45" cy="11.26" r="0.75"></circle>
+        </g>
+
+        <g class="tv-marker" data-place="Dhaka" data-role="Regional office" data-cx="69.5" data-cy="20.78">
+          <circle class="tv-marker__ping" cx="69.5" cy="20.78" r="0.7"></circle>
+          <circle class="tv-marker__core" cx="69.5" cy="20.78" r="0.75"></circle>
+        </g>
+      </g>
+    </svg>
+
+    <div class="tv-zoom">
+      <button type="button" id="tvZoomIn" aria-label="Zoom in">+</button>
+      <button type="button" id="tvZoomOut" aria-label="Zoom out">&minus;</button>
+      <button type="button" id="tvZoomReset" aria-label="Reset zoom" style="font-size:16px;">&#8634;</button>
+    </div>
+  </div>
+</div>
+
+<div class="tv-tooltip" id="tvTooltip">
+  <span class="tv-tooltip__place" id="tvTooltipPlace"></span>
+  <span class="tv-tooltip__role" id="tvTooltipRole"></span>
+</div>
+
+<script>
+(function () {
+  var svg = document.getElementById('tvSvg');
+  var zoomLayer = document.getElementById('tvZoomLayer');
+  var mapEl = document.getElementById('tvMap');
+  var tooltip = document.getElementById('tvTooltip');
+  var tooltipPlace = document.getElementById('tvTooltipPlace');
+  var tooltipRole = document.getElementById('tvTooltipRole');
+  var markers = mapEl.querySelectorAll('.tv-marker');
+
+  var VB_X = -2, VB_Y = -2, BASE_W = 95, BASE_H = 50; // matches viewBox
+  var MIN_SCALE = 1, MAX_SCALE = 8;
+
+  var state = { scale: 1, tx: 0, ty: 0 };
+
+  function applyTransform() {
+    zoomLayer.setAttribute('transform',
+      'translate(' + state.tx + ' ' + state.ty + ') scale(' + state.scale + ')');
+    updatePanAvailability();
+  }
+
+  function updatePanAvailability() {
+    // panning only makes sense once you've zoomed in — at the default
+    // fully-zoomed-out view the whole map already fits, so dragging is
+    // disabled and the cursor reflects that.
+    svg.classList.toggle('tv-can-pan', state.scale > 1);
+  }
+
+  function clampPan() {
+    // Keep the map content fully covering the viewBox at all times, so
+    // dragging can never pull an edge inward and reveal empty space —
+    // it stops flush at the border instead of trailing off oddly.
+    var scaledW = BASE_W * state.scale;
+    var scaledH = BASE_H * state.scale;
+    var minTx = (VB_X + BASE_W) - scaledW;
+    var maxTx = VB_X;
+    var minTy = (VB_Y + BASE_H) - scaledH;
+    var maxTy = VB_Y;
+    state.tx = Math.max(minTx, Math.min(maxTx, state.tx));
+    state.ty = Math.max(minTy, Math.min(maxTy, state.ty));
+  }
+
+  // Zoom toward a specific point given in SVG user-space coordinates
+  function zoomAt(userX, userY, factor) {
+    var newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, state.scale * factor));
+    if (newScale === state.scale) return;
+    var ratio = newScale / state.scale;
+    state.tx = userX - ratio * (userX - state.tx);
+    state.ty = userY - ratio * (userY - state.ty);
+    state.scale = newScale;
+    clampPan();
+    applyTransform();
+    hideTooltip();
+  }
+
+  function svgPointFromClient(clientX, clientY) {
+    var pt = svg.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    var ctm = svg.getScreenCTM().inverse();
+    return pt.matrixTransform(ctm);
+  }
+
+  // --- zoom buttons ---
+  document.getElementById('tvZoomIn').addEventListener('click', function () {
+    zoomAt(BASE_W / 2, BASE_H / 2, 1.6);
+  });
+  document.getElementById('tvZoomOut').addEventListener('click', function () {
+    zoomAt(BASE_W / 2, BASE_H / 2, 1 / 1.6);
+  });
+  document.getElementById('tvZoomReset').addEventListener('click', function () {
+    state.scale = 1; state.tx = 0; state.ty = 0;
+    applyTransform();
+    hideTooltip();
+  });
+
+  // --- scroll wheel zoom, centered on cursor ---
+  svg.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var p = svgPointFromClient(e.clientX, e.clientY);
+    var userPt = { x: (p.x - state.tx) / state.scale, y: (p.y - state.ty) / state.scale };
+    zoomAt(userPt.x, userPt.y, e.deltaY < 0 ? 1.15 : 1 / 1.15);
+  }, { passive: false });
+
+  // --- drag to pan (mouse) — only active once zoomed in ---
+  var dragging = false, lastX = 0, lastY = 0;
+  svg.addEventListener('mousedown', function (e) {
+    if (state.scale <= 1) return;
+    dragging = true;
+    lastX = e.clientX; lastY = e.clientY;
+    svg.classList.add('is-panning');
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!dragging) return;
+    var scaleRatio = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+    state.tx += (e.clientX - lastX) * scaleRatio;
+    state.ty += (e.clientY - lastY) * scaleRatio;
+    lastX = e.clientX; lastY = e.clientY;
+    clampPan();
+    applyTransform();
+    hideTooltip();
+  });
+  window.addEventListener('mouseup', function () {
+    dragging = false;
+    svg.classList.remove('is-panning');
+  });
+
+  // --- touch: 1 finger pan, 2 finger pinch zoom ---
+  var touchState = {};
+  svg.addEventListener('touchstart', function (e) {
+    if (e.touches.length === 1) {
+      touchState.panning = state.scale > 1;
+      touchState.lastX = e.touches[0].clientX;
+      touchState.lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      touchState.panning = false;
+      touchState.pinchDist = touchDistance(e.touches);
+      var mid = touchMidpoint(e.touches);
+      touchState.pinchOrigin = svgPointFromClient(mid.x, mid.y);
+    }
+  }, { passive: true });
+
+  svg.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    if (e.touches.length === 1 && touchState.panning) {
+      var scaleRatio = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
+      var dx = (e.touches[0].clientX - touchState.lastX) * scaleRatio;
+      var dy = (e.touches[0].clientY - touchState.lastY) * scaleRatio;
+      state.tx += dx; state.ty += dy;
+      touchState.lastX = e.touches[0].clientX;
+      touchState.lastY = e.touches[0].clientY;
+      clampPan();
+      applyTransform();
+    } else if (e.touches.length === 2) {
+      var newDist = touchDistance(e.touches);
+      var factor = newDist / touchState.pinchDist;
+      touchState.pinchDist = newDist;
+      var userPt = {
+        x: (touchState.pinchOrigin.x - state.tx) / state.scale,
+        y: (touchState.pinchOrigin.y - state.ty) / state.scale
+      };
+      zoomAt(userPt.x, userPt.y, factor);
+    }
+  }, { passive: false });
+
+  svg.addEventListener('touchend', function (e) {
+    if (e.touches.length === 0) touchState.panning = false;
+  });
+
+  function touchDistance(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  function touchMidpoint(touches) {
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+  }
+
+  // --- marker tooltip (single shared element, position:fixed on body,
+  //     so it always sits above everything and only one can ever be
+  //     visible at once — they can never overlap each other) ---
+  markers.forEach(function (marker) {
+    marker.addEventListener('mouseenter', function () { showTooltip(marker); });
+    marker.addEventListener('mousemove', function () { showTooltip(marker); });
+    marker.addEventListener('mouseleave', hideTooltip);
+    marker.addEventListener('touchstart', function (e) {
+      e.stopPropagation();
+      showTooltip(marker);
+    });
+  });
+
+  document.addEventListener('touchstart', function (e) {
+    if (!e.target.closest('.tv-marker')) hideTooltip();
+  });
+
+  function showTooltip(marker) {
+    // Read the marker's actual rendered position straight from the DOM —
+    // this already accounts for zoom/pan/scroll/page layout with no
+    // manual matrix math, so it can't drift out of sync.
+    var core = marker.querySelector('.tv-marker__core');
+    var rect = core.getBoundingClientRect();
+    var x = rect.left + rect.width / 2;
+    var y = rect.top + rect.height / 2;
+
+    tooltipPlace.textContent = marker.getAttribute('data-place');
+    tooltipRole.textContent = marker.getAttribute('data-role');
+
+    tooltip.style.left = x + 'px';
+    tooltip.style.top = y + 'px';
+    tooltip.classList.add('is-visible');
+  }
+
+  function hideTooltip() {
+    tooltip.classList.remove('is-visible');
+  }
+})();
+</script>
+
+</body>
+</html>
