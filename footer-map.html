@@ -223,9 +223,48 @@
     border-top-color: #16171b;
   }
 
+  .tv-mobile-label {
+    display: none;
+  }
+
   @media (max-width: 640px) {
-    .tv-locations { padding: 28px 18px 24px; border-radius: 14px; }
+    .tv-locations { padding: 18px 0 16px; border-radius: 14px; }
+    .tv-locations__head { padding: 0 14px; }
     .tv-locations__legend { display: none; }
+    .tv-map {
+      height: 360px;
+      overflow: visible;
+    }
+    .tv-map svg {
+      height: 100%;
+      transform: scale(1.32);
+      transform-origin: center;
+    }
+    .tv-mobile-label {
+      position: absolute;
+      z-index: 7;
+      display: block;
+      transform: translate(-50%, calc(-100% - 10px));
+      padding: 7px 10px;
+      border: 1px solid #2a2c33;
+      border-radius: 7px;
+      background: #16171b;
+      box-shadow: 0 6px 18px rgba(0,0,0,.42);
+      white-space: nowrap;
+      pointer-events: none;
+      line-height: 1.25;
+    }
+    .tv-mobile-label strong {
+      display: block;
+      color: var(--text);
+      font-size: 12px;
+    }
+    .tv-mobile-label span {
+      display: block;
+      margin-top: 2px;
+      color: var(--accent);
+      font-size: 10px;
+    }
   }
 </style>
 </head>
@@ -280,6 +319,15 @@
   var tooltipPlace = document.getElementById('tvTooltipPlace');
   var tooltipRole = document.getElementById('tvTooltipRole');
   var markers = mapEl.querySelectorAll('.tv-marker');
+  var mobileLabels = [];
+
+  markers.forEach(function (marker) {
+    var label = document.createElement('div');
+    label.className = 'tv-mobile-label';
+    label.innerHTML = '<strong>' + marker.getAttribute('data-place') + '</strong><span>' + marker.getAttribute('data-role') + '</span>';
+    mapEl.appendChild(label);
+    mobileLabels.push({ marker: marker, label: label });
+  });
 
   var VB_X = -2, VB_Y = -2, BASE_W = 95, BASE_H = 50; // matches viewBox
   var MIN_SCALE = 1, MAX_SCALE = 8;
@@ -290,6 +338,16 @@
     zoomLayer.setAttribute('transform',
       'translate(' + state.tx + ' ' + state.ty + ') scale(' + state.scale + ')');
     updatePanAvailability();
+    requestAnimationFrame(updateMobileLabels);
+  }
+
+  function updateMobileLabels() {
+    var mapRect = mapEl.getBoundingClientRect();
+    mobileLabels.forEach(function (item) {
+      var coreRect = item.marker.querySelector('.tv-marker__core').getBoundingClientRect();
+      item.label.style.left = (coreRect.left + coreRect.width / 2 - mapRect.left) + 'px';
+      item.label.style.top = (coreRect.top + coreRect.height / 2 - mapRect.top) + 'px';
+    });
   }
 
   function updatePanAvailability() {
@@ -435,14 +493,16 @@
   //     so it always sits above everything and only one can ever be
   //     visible at once — they can never overlap each other) ---
   markers.forEach(function (marker) {
-    marker.addEventListener('mouseenter', function () { showTooltip(marker); });
-    marker.addEventListener('mousemove', function () { showTooltip(marker); });
+    marker.addEventListener('mouseenter', function () { if (window.innerWidth > 640) showTooltip(marker); });
+    marker.addEventListener('mousemove', function () { if (window.innerWidth > 640) showTooltip(marker); });
     marker.addEventListener('mouseleave', hideTooltip);
     marker.addEventListener('touchstart', function (e) {
       e.stopPropagation();
-      showTooltip(marker);
     });
   });
+
+  window.addEventListener('resize', updateMobileLabels);
+  requestAnimationFrame(updateMobileLabels);
 
   document.addEventListener('touchstart', function (e) {
     if (!e.target.closest('.tv-marker')) hideTooltip();

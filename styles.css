@@ -2370,7 +2370,7 @@ footer{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:end;margin-top
 
 @media (max-width:900px){
   .footer-map-frame{
-    height:480px;
+    height:380px;
   }
   .site-footer{margin-top:86px}
   .footer-rail{grid-template-columns:1fr auto;min-height:54px}
@@ -2387,10 +2387,11 @@ footer{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:end;margin-top
   .footer-bottom > :nth-child(2){display:none}
 }
 @media (max-width:600px){
+  .footer-map-frame{height:540px}
   .footer-rail{font-size:9px;letter-spacing:.04em}
   .footer-wordmark{padding:28px 0 32px}
   .footer-wordmark > img{width:82vw}
-  .footer-seal{width:68px;font-size:8px;top:18%}
+  .footer-seal{width:68px;font-size:8px;top:auto;right:auto;left:3%;bottom:72px}
   .footer-directory{grid-template-columns:1fr}
   .footer-directory > *{min-height:auto;padding:26px 0!important;border-right:0!important;border-top:1px solid var(--line)}
   .footer-directory > :first-child{border-top:0;min-height:170px}
